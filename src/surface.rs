@@ -23,7 +23,7 @@ pub struct Experiments;
 #[exit_status(code = 2, word = "do_not_promote")]
 #[exit_status(code = 3, word = "inconclusive")]
 pub struct Run {
-    /// Declarative `.1o` experiment spec.
+    /// Experiment spec: canonical 1o, JSON, TOML, YAML or YML.
     #[builder(init_required, into)]
     #[arg(positional, each = nonempty)]
     pub spec: OsString,
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn declared_run_line_reads_back_from_its_own_words() {
-        let argv = Experiments::run("examples/minimal.1o")
+        let argv = Experiments::run("examples/v1.minimal-latency.1o.experiment")
             .storage(".experiment-storage")
             .argv();
         let line = read(&argv).expect("declared argv reads");

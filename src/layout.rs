@@ -40,7 +40,7 @@ impl ExperimentPaths {
     }
 
     pub fn result(&self, run_id: &str) -> PathBuf {
-        self.run(run_id).join(RESULTS).join("result.1o")
+        self.run(run_id).join(RESULTS).join("result.json")
     }
 
     pub fn evidence(&self, run_id: &str) -> PathBuf {

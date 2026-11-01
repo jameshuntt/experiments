@@ -1,6 +1,6 @@
 use crate::{
     differences, CommandRecord, CommandSpec, ExperimentPaths, ExperimentResult, ExperimentSpec,
-    MeasurementParser, MeasurementPhase, PromotionDecision, VerificationResult,
+    MeasurementParser, MeasurementPhase, MutationMode, PromotionDecision, VerificationResult,
 };
 use scientific_method::{Measurement, Observation, Observations, Outcome, Scalar};
 use std::{
@@ -18,6 +18,7 @@ pub enum ExperimentError {
     Measurement { name: String, detail: String },
     CommandFailed { label: String, status: i32 },
     Contract { label: String, detail: String },
+    Mutation(String),
     Other(String),
 }
 
@@ -31,6 +32,7 @@ impl fmt::Display for ExperimentError {
                 write!(f, "command {label} failed with status {status}")
             }
             Self::Contract { label, detail } => write!(f, "command contract {label}: {detail}"),
+            Self::Mutation(message) => write!(f, "mutation: {message}"),
             Self::Other(message) => f.write_str(message),
         }
     }
@@ -70,6 +72,8 @@ impl ExperimentRunner {
             .map_err(|error| ExperimentError::Other(error.to_string()))?;
         paths.ensure_run(&run_id)?;
 
+        crate::mutation::validate(spec).map_err(ExperimentError::Mutation)?;
+
         let mut records = Vec::new();
         let mut observations = Observations::new();
 
@@ -94,13 +98,18 @@ impl ExperimentRunner {
             &mut records,
         )?;
 
-        run_phase(
-            "intervention",
-            &spec.protocol.intervention,
-            &spec.target.root,
-            &mut records,
-            true,
-        )?;
+        if spec.mutation.mode == MutationMode::Unbounded {
+            run_phase(
+                "intervention",
+                &spec.protocol.intervention,
+                &spec.target.root,
+                &mut records,
+                true,
+            )?;
+        }
+        let (mutation_records, evidence) = crate::mutation::run(spec, &paths, &run_id)
+            .map_err(ExperimentError::Mutation)?;
+
         run_phase(
             "candidate",
             &spec.protocol.candidate,
@@ -159,8 +168,9 @@ impl ExperimentRunner {
             evaluation,
             verification,
             commands: records,
+            mutations: mutation_records,
             differences: difference_reports,
-            evidence: Vec::new(),
+            evidence,
             promotion,
         };
 
@@ -361,6 +371,7 @@ mod tests {
                 label: None,
             },
             protocol: Protocol::default(),
+            mutation: crate::MutationPlan::default(),
             verification: Verification::default(),
             measurements: MeasurementPlan::default(),
             differences: Vec::new(),

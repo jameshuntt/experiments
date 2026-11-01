@@ -1,0 +1,81 @@
+schema = "experiments.spec.v3"
+id = "minimal-latency"
+description = "A minimal declarative latency experiment."
+differences = []
+
+[scientific_method]
+predictions = []
+controls = []
+
+[scientific_method.question]
+text = "Does the candidate lower latency?"
+
+[scientific_method.hypothesis]
+statement = "the candidate lowers latency"
+
+[[scientific_method.independent_variables]]
+name = "implementation"
+
+[[scientific_method.dependent_variables]]
+name = "latency"
+unit = "ms"
+
+[[scientific_method.criteria]]
+kind = "improvement"
+direction = "lower_is_better"
+minimum_fraction = 0.05
+
+[scientific_method.criteria.baseline]
+condition = "baseline"
+measurement = "latency"
+
+[scientific_method.criteria.candidate]
+condition = "candidate"
+measurement = "latency"
+
+[target]
+root = "."
+label = "example"
+
+[protocol]
+prepare = []
+baseline = []
+intervention = []
+candidate = []
+cleanup = []
+
+[mutation]
+mode = "unbounded"
+backend = "code_passenger"
+changes = []
+
+[verification]
+commands = []
+
+[[measurements.measurements]]
+phase = "baseline"
+condition = "baseline"
+name = "latency"
+unit = "ms"
+parser = "number"
+
+[measurements.measurements.command]
+label = "baseline latency"
+program = "printf"
+args = ["100"]
+
+[[measurements.measurements]]
+phase = "candidate"
+condition = "candidate"
+name = "latency"
+unit = "ms"
+parser = "number"
+
+[measurements.measurements.command]
+label = "candidate latency"
+program = "printf"
+args = ["90"]
+
+[promotion]
+require_supported = true
+require_verification = true

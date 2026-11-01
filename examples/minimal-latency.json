@@ -1,7 +1,7 @@
 {
-  "schema": "experiments.spec.v2",
+  "schema": "experiments.spec.v3",
   "id": "minimal-latency",
-  "description": "A minimal declarative experiment with measurements taken at their declared experimental phases.",
+  "description": "A minimal declarative latency experiment.",
   "scientific_method": {
     "question": { "text": "Does the candidate lower latency?" },
     "hypothesis": { "statement": "the candidate lowers latency", "rationale": null },
@@ -18,13 +18,8 @@
     }]
   },
   "target": { "root": ".", "label": "example" },
-  "protocol": {
-    "prepare": [],
-    "baseline": [],
-    "intervention": [],
-    "candidate": [],
-    "cleanup": []
-  },
+  "protocol": { "prepare": [], "baseline": [], "intervention": [], "candidate": [], "cleanup": [] },
+  "mutation": { "mode": "unbounded", "backend": "code_passenger", "changes": [] },
   "verification": { "commands": [] },
   "measurements": {
     "measurements": [
@@ -33,32 +28,19 @@
         "condition": "baseline",
         "name": "latency",
         "unit": "ms",
-        "parser": "number",
-        "command": {
-          "label": "baseline latency",
-          "program": "printf",
-          "args": ["100"],
-          "cwd": null
-        }
+        "command": { "label": "baseline latency", "program": "printf", "args": ["100"], "cwd": null },
+        "parser": "number"
       },
       {
         "phase": "candidate",
         "condition": "candidate",
         "name": "latency",
         "unit": "ms",
-        "parser": "number",
-        "command": {
-          "label": "candidate latency",
-          "program": "printf",
-          "args": ["90"],
-          "cwd": null
-        }
+        "command": { "label": "candidate latency", "program": "printf", "args": ["90"], "cwd": null },
+        "parser": "number"
       }
     ]
   },
   "differences": [],
-  "promotion": {
-    "require_supported": true,
-    "require_verification": true
-  }
+  "promotion": { "require_supported": true, "require_verification": true }
 }

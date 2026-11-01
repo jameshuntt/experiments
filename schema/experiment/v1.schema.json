@@ -1,0 +1,821 @@
+{
+  "type": "object",
+  "properties": {
+    "experiment": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "scientific_method": {
+          "type": "object",
+          "properties": {
+            "question": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "x-1o-single-keys": true,
+              "required": [
+                "text"
+              ]
+            },
+            "hypothesis": {
+              "type": "object",
+              "properties": {
+                "statement": {
+                  "type": "string"
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "x-1o-single-keys": true,
+              "required": [
+                "statement"
+              ]
+            },
+            "prediction": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "statement": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "statement"
+                ]
+              },
+              "x-serde-key": "predictions"
+            },
+            "independent_variable": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "name"
+                ]
+              },
+              "x-serde-key": "independent_variables"
+            },
+            "dependent_variable": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "unit": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "name"
+                ]
+              },
+              "x-serde-key": "dependent_variables"
+            },
+            "control": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "name"
+                ]
+              },
+              "x-serde-key": "controls"
+            },
+            "criterion": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "x-1o-kind": "criterion",
+                "x-1o-single-keys": true,
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "compare",
+                      "improvement",
+                      "regression_limit",
+                      "all",
+                      "any",
+                      "not"
+                    ]
+                  },
+                  "left": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "literal",
+                          "observation"
+                        ]
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "number",
+                              "boolean",
+                              "text"
+                            ]
+                          },
+                          "value": {
+                            "x-1o-any-scalar": true
+                          }
+                        },
+                        "additionalProperties": false,
+                        "x-1o-single-keys": true,
+                        "required": [
+                          "type",
+                          "value"
+                        ]
+                      },
+                      "reference": {
+                        "type": "object",
+                        "properties": {
+                          "condition": {
+                            "type": "string"
+                          },
+                          "measurement": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "x-1o-single-keys": true,
+                        "required": [
+                          "condition",
+                          "measurement"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "x-1o-single-keys": true,
+                    "required": [
+                      "kind"
+                    ],
+                    "x-1o-required-when": {
+                      "kind": {
+                        "literal": [
+                          "value"
+                        ],
+                        "observation": [
+                          "reference"
+                        ]
+                      }
+                    }
+                  },
+                  "comparator": {
+                    "type": "string",
+                    "enum": [
+                      "equal",
+                      "not_equal",
+                      "greater_than",
+                      "greater_than_or_equal",
+                      "less_than",
+                      "less_than_or_equal"
+                    ]
+                  },
+                  "right": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "literal",
+                          "observation"
+                        ]
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "number",
+                              "boolean",
+                              "text"
+                            ]
+                          },
+                          "value": {
+                            "x-1o-any-scalar": true
+                          }
+                        },
+                        "additionalProperties": false,
+                        "x-1o-single-keys": true,
+                        "required": [
+                          "type",
+                          "value"
+                        ]
+                      },
+                      "reference": {
+                        "type": "object",
+                        "properties": {
+                          "condition": {
+                            "type": "string"
+                          },
+                          "measurement": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "x-1o-single-keys": true,
+                        "required": [
+                          "condition",
+                          "measurement"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "x-1o-single-keys": true,
+                    "required": [
+                      "kind"
+                    ],
+                    "x-1o-required-when": {
+                      "kind": {
+                        "literal": [
+                          "value"
+                        ],
+                        "observation": [
+                          "reference"
+                        ]
+                      }
+                    }
+                  },
+                  "baseline": {
+                    "type": "object",
+                    "properties": {
+                      "condition": {
+                        "type": "string"
+                      },
+                      "measurement": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "x-1o-single-keys": true,
+                    "required": [
+                      "condition",
+                      "measurement"
+                    ]
+                  },
+                  "candidate": {
+                    "type": "object",
+                    "properties": {
+                      "condition": {
+                        "type": "string"
+                      },
+                      "measurement": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "x-1o-single-keys": true,
+                    "required": [
+                      "condition",
+                      "measurement"
+                    ]
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "higher_is_better",
+                      "lower_is_better"
+                    ]
+                  },
+                  "minimum_fraction": {
+                    "type": "number"
+                  },
+                  "maximum_fraction": {
+                    "type": "number"
+                  },
+                  "criterion": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "x-1o-kind": "criterion"
+                    },
+                    "x-serde-key": "criteria"
+                  },
+                  "negated": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "x-1o-kind": "criterion",
+                    "x-serde-key": "criterion"
+                  }
+                },
+                "x-1o-required-when": {
+                  "kind": {
+                    "compare": [
+                      "left",
+                      "comparator",
+                      "right"
+                    ],
+                    "improvement": [
+                      "baseline",
+                      "candidate",
+                      "direction",
+                      "minimum_fraction"
+                    ],
+                    "regression_limit": [
+                      "baseline",
+                      "candidate",
+                      "direction",
+                      "maximum_fraction"
+                    ],
+                    "all": [
+                      "criterion"
+                    ],
+                    "any": [
+                      "criterion"
+                    ],
+                    "not": [
+                      "negated"
+                    ]
+                  }
+                }
+              },
+              "x-serde-key": "criteria"
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true,
+          "required": [
+            "hypothesis"
+          ],
+          "description": "Scientific question, hypothesis, variables, controls and evaluable criteria."
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "root": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true,
+          "required": [
+            "root"
+          ]
+        },
+        "protocol": {
+          "type": "object",
+          "properties": {
+            "prepare": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": "Human-readable operation label."
+                  },
+                  "program": {
+                    "type": "string",
+                    "description": "Program name or path. Arguments are separate words."
+                  },
+                  "arg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "x-serde-key": "args",
+                    "description": "One argv word; repeat in order."
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "Optional working directory, relative to target root unless absolute."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "label",
+                  "program"
+                ],
+                "description": "One argv-safe XCCUTE operation."
+              },
+              "x-serde-key": "prepare"
+            },
+            "baseline": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": "Human-readable operation label."
+                  },
+                  "program": {
+                    "type": "string",
+                    "description": "Program name or path. Arguments are separate words."
+                  },
+                  "arg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "x-serde-key": "args",
+                    "description": "One argv word; repeat in order."
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "Optional working directory, relative to target root unless absolute."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "label",
+                  "program"
+                ],
+                "description": "One argv-safe XCCUTE operation."
+              },
+              "x-serde-key": "baseline"
+            },
+            "intervention": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": "Human-readable operation label."
+                  },
+                  "program": {
+                    "type": "string",
+                    "description": "Program name or path. Arguments are separate words."
+                  },
+                  "arg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "x-serde-key": "args",
+                    "description": "One argv word; repeat in order."
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "Optional working directory, relative to target root unless absolute."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "label",
+                  "program"
+                ],
+                "description": "One argv-safe XCCUTE operation."
+              },
+              "x-serde-key": "intervention"
+            },
+            "candidate": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": "Human-readable operation label."
+                  },
+                  "program": {
+                    "type": "string",
+                    "description": "Program name or path. Arguments are separate words."
+                  },
+                  "arg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "x-serde-key": "args",
+                    "description": "One argv word; repeat in order."
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "Optional working directory, relative to target root unless absolute."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "label",
+                  "program"
+                ],
+                "description": "One argv-safe XCCUTE operation."
+              },
+              "x-serde-key": "candidate"
+            },
+            "cleanup": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": "Human-readable operation label."
+                  },
+                  "program": {
+                    "type": "string",
+                    "description": "Program name or path. Arguments are separate words."
+                  },
+                  "arg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "x-serde-key": "args",
+                    "description": "One argv word; repeat in order."
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "Optional working directory, relative to target root unless absolute."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "label",
+                  "program"
+                ],
+                "description": "One argv-safe XCCUTE operation."
+              },
+              "x-serde-key": "cleanup"
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true
+        },
+        "mutation": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "bounded",
+                "unbounded"
+              ]
+            },
+            "backend": {
+              "type": "string",
+              "enum": [
+                "code_passenger"
+              ]
+            },
+            "change": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "spec": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "label",
+                  "spec"
+                ]
+              },
+              "x-serde-key": "changes"
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true,
+          "description": "Source mutation policy. Bounded mode refuses raw protocol intervention commands."
+        },
+        "verification": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": "Human-readable operation label."
+                  },
+                  "program": {
+                    "type": "string",
+                    "description": "Program name or path. Arguments are separate words."
+                  },
+                  "arg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "x-serde-key": "args",
+                    "description": "One argv word; repeat in order."
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "Optional working directory, relative to target root unless absolute."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "label",
+                  "program"
+                ],
+                "description": "One argv-safe XCCUTE operation."
+              },
+              "x-serde-key": "commands"
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true
+        },
+        "measurements": {
+          "type": "object",
+          "properties": {
+            "measurement": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "phase": {
+                    "type": "string",
+                    "enum": [
+                      "baseline",
+                      "candidate"
+                    ]
+                  },
+                  "condition": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "unit": {
+                    "type": "string"
+                  },
+                  "command": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "description": "Human-readable operation label."
+                      },
+                      "program": {
+                        "type": "string",
+                        "description": "Program name or path. Arguments are separate words."
+                      },
+                      "arg": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "x-serde-key": "args",
+                        "description": "One argv word; repeat in order."
+                      },
+                      "cwd": {
+                        "type": "string",
+                        "description": "Optional working directory, relative to target root unless absolute."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "x-1o-single-keys": true,
+                    "required": [
+                      "label",
+                      "program"
+                    ],
+                    "description": "One argv-safe XCCUTE operation."
+                  },
+                  "parser": {
+                    "type": "string",
+                    "enum": [
+                      "number",
+                      "boolean",
+                      "text",
+                      "exit_success"
+                    ]
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "phase",
+                  "condition",
+                  "name",
+                  "command",
+                  "parser"
+                ]
+              },
+              "x-serde-key": "measurements"
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true
+        },
+        "difference": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "word": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "x-serde-key": "line",
+                "minItems": 1
+              }
+            },
+            "additionalProperties": false,
+            "x-1o-single-keys": true,
+            "required": [
+              "word"
+            ]
+          },
+          "x-serde-key": "differences"
+        },
+        "promotion": {
+          "type": "object",
+          "properties": {
+            "require_supported": {
+              "type": "boolean"
+            },
+            "require_verification": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true
+        }
+      },
+      "additionalProperties": false,
+      "x-1o-single-keys": true,
+      "required": [
+        "schema",
+        "id",
+        "scientific_method",
+        "target"
+      ],
+      "description": "One reproducible software experiment."
+    }
+  },
+  "additionalProperties": false,
+  "x-1o-single-keys": true,
+  "required": [
+    "experiment"
+  ],
+  "description": "experiments v1 1o document",
+  "title": "experiments experiment v1"
+}

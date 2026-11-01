@@ -2,8 +2,8 @@ use scientific_method::{MethodEvaluation, Observations, ScientificMethod};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub const SCHEMA: &str = "experiments.spec.v2";
-pub const RESULT_SCHEMA: &str = "experiments.result.v2";
+pub const SCHEMA: &str = "experiments.spec.v3";
+pub const RESULT_SCHEMA: &str = "experiments.result.v3";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExperimentTarget {
@@ -30,6 +30,9 @@ pub struct Protocol {
     pub prepare: Vec<CommandSpec>,
     #[serde(default)]
     pub baseline: Vec<CommandSpec>,
+    /// In `bounded` mutation mode this must be empty: source changes are made
+    /// only by the declared mutation backend. In `unbounded` mode these
+    /// declared XCCUTE operations are permitted.
     #[serde(default)]
     pub intervention: Vec<CommandSpec>,
     #[serde(default)]
@@ -79,6 +82,45 @@ pub struct MeasurementPlan {
     pub measurements: Vec<MeasurementSpec>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MutationMode {
+    /// All declared source-code intervention changes must go through the
+    /// mutation backend. Raw `protocol.intervention` commands are refused.
+    Bounded,
+    /// Declared XCCUTE intervention commands may run directly. Structured
+    /// backend changes can still be mixed in when desired.
+    #[default]
+    Unbounded,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MutationBackend {
+    /// Code Passenger proves a custodian_kit ChangeSpec on a scratch copy,
+    /// writes it, checkpoints before/after, and emits a transform record.
+    #[default]
+    CodePassenger,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MutationChange {
+    pub label: String,
+    /// Code Passenger change spec, relative to the experiment target root
+    /// unless absolute. Code Passenger accepts its normal 1o or TOML form.
+    pub spec: PathBuf,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MutationPlan {
+    #[serde(default)]
+    pub mode: MutationMode,
+    #[serde(default)]
+    pub backend: MutationBackend,
+    #[serde(default)]
+    pub changes: Vec<MutationChange>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PromotionPolicy {
     #[serde(default = "yes")]
@@ -112,6 +154,8 @@ pub struct ExperimentSpec {
     #[serde(default)]
     pub protocol: Protocol,
     #[serde(default)]
+    pub mutation: MutationPlan,
+    #[serde(default)]
     pub verification: Verification,
     #[serde(default)]
     pub measurements: MeasurementPlan,
@@ -137,6 +181,20 @@ pub struct CommandRecord {
     pub status: i32,
     pub stdout: String,
     pub stderr: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MutationRecord {
+    pub label: String,
+    pub backend: MutationBackend,
+    pub spec: PathBuf,
+    pub display: String,
+    pub status: i32,
+    pub status_word: String,
+    pub stdout: String,
+    pub stderr: String,
+    #[serde(default)]
+    pub transform_record: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -170,6 +228,7 @@ pub struct ExperimentResult {
     pub evaluation: MethodEvaluation,
     pub verification: VerificationResult,
     pub commands: Vec<CommandRecord>,
+    pub mutations: Vec<MutationRecord>,
     pub differences: Vec<crate::DifferencesReport>,
     pub evidence: Vec<Evidence>,
     pub promotion: PromotionDecision,
