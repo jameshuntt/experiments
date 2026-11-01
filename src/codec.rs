@@ -17,12 +17,11 @@ enum Format {
 
 impl Format {
     fn of(path: &Path) -> io::Result<Self> {
-        if let Some(name) = path.file_name().and_then(|v| v.to_str()) {
-            if let Some(record) = core_1o::utils::parse_filename(name) {
-                if record.modifier == "experiment" {
-                    return Ok(Self::OneO);
-                }
-            }
+        if let Some(name) = path.file_name().and_then(|v| v.to_str())
+            && let Some(record) = core_1o::utils::parse_filename(name)
+            && record.modifier == "experiment"
+        {
+            return Ok(Self::OneO);
         }
         match path.extension().and_then(|v| v.to_str()).map(str::to_ascii_lowercase).as_deref() {
             Some("1o") => Ok(Self::OneO),
@@ -166,13 +165,14 @@ fn entries_to_json(nodes: &[Node], schema: &Value) -> io::Result<Value> {
     for (oneo_key, child_schema) in properties {
         let matches: Vec<&Node> = nodes.iter().filter(|node| node.key == *oneo_key).collect();
         let key = serde_key(oneo_key, child_schema);
+        let is_array = child_schema.get("type").and_then(Value::as_str) == Some("array");
         if matches.is_empty() {
-            if child_schema.get("type").and_then(Value::as_str) == Some("array") {
+            if is_array {
                 object.insert(key, Value::Array(Vec::new()));
             }
             continue;
         }
-        if child_schema.get("type").and_then(Value::as_str) == Some("array") {
+        if is_array {
             let item_schema = child_schema.get("items").ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, format!("array `{oneo_key}` has no item schema")))?;
             let mut values = Vec::with_capacity(matches.len());
             for node in matches {
