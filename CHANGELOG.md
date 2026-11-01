@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.2 (2026-11-01)
+
+- Adds the host seam a governing host runs an experiment through: `ExperimentHost` carries out each protocol,
+  measurement and verification command (`run_command`) and each bounded structured change (`apply_change`, given a
+  `ChangeRequest` with the absolute target root, change spec and the run's record path). The runner still decides
+  what runs, in which order, and what each status means.
+- `ExperimentRunner::run` is unchanged: it runs on `Standalone`, this crate's own host (commands through XCCUTE's
+  argv-safe runtime contract, bounded changes through Code Passenger's declared transform line in-process).
+  `ExperimentRunner::run_with(spec, host)` runs on another host.
+- A host's change error stops the run before the candidate phase, as a Code Passenger failure did.
+- Tests: `tests/host.rs` (every command and change through a host that runs nothing itself; a refused change ends
+  the run before the candidate).
+
 ## 0.3.1 (2026-11-01)
 
 - Adds a pre-Custodian qualification suite covering rich cross-format read/write round-trips, schema rejection and conditional requirements, result codecs, runner phase ordering, measurement parsers, fail-fast and cleanup behavior, PathGen run layout, CLI exit semantics, optional-feature refusal contracts, and real Code Passenger success/failure transforms on dependency-free Rust fixture workspaces.

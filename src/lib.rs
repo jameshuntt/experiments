@@ -20,7 +20,7 @@ pub use codec::{read_result, read_spec, write_result, write_spec};
 pub use differences::{DifferencesReport, DifferencesRequest, DifferencesSource};
 pub use layout::ExperimentPaths;
 pub use model::*;
-pub use runner::{ExperimentError, ExperimentRunner};
+pub use runner::{ChangeRequest, ExperimentError, ExperimentHost, ExperimentRunner, Standalone};
 
 #[cfg(test)]
 pub(crate) fn codec_test_spec() -> ExperimentSpec {

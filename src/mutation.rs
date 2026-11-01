@@ -1,4 +1,7 @@
-use crate::{Evidence, ExperimentPaths, ExperimentSpec, MutationBackend, MutationMode, MutationRecord};
+use crate::{
+    ChangeRequest, Evidence, ExperimentHost, ExperimentPaths, ExperimentSpec, MutationMode,
+    MutationRecord,
+};
 use std::path::{Path, PathBuf};
 
 pub(crate) fn validate(spec: &ExperimentSpec) -> Result<(), String> {
@@ -8,56 +11,49 @@ pub(crate) fn validate(spec: &ExperimentSpec) -> Result<(), String> {
     Ok(())
 }
 
+/// Each declared change, as a [`ChangeRequest`] the host makes, in order.
 pub(crate) fn run(
     spec: &ExperimentSpec,
     paths: &ExperimentPaths,
     run_id: &str,
+    host: &mut dyn ExperimentHost,
 ) -> Result<(Vec<MutationRecord>, Vec<Evidence>), String> {
     validate(spec)?;
+    let root = absolute(&spec.target.root).map_err(|e| e.to_string())?;
     let mut records = Vec::new();
     let mut evidence = Vec::new();
     for (index, change) in spec.mutation.changes.iter().enumerate() {
-        match spec.mutation.backend {
-            MutationBackend::CodePassenger => {
-                let (record, item) = code_passenger_change(
-                    &spec.target.root,
-                    paths,
-                    run_id,
-                    index,
-                    &change.label,
-                    &change.spec,
-                )?;
-                if let Some(item) = item {
-                    evidence.push(item);
-                }
-                records.push(record);
-            }
-        }
+        let request = ChangeRequest {
+            index,
+            label: change.label.clone(),
+            backend: spec.mutation.backend,
+            root: root.clone(),
+            spec: if change.spec.is_absolute() {
+                change.spec.clone()
+            } else {
+                root.join(&change.spec)
+            },
+            record: paths
+                .evidence(run_id)
+                .join(format!("mutation-{index:03}-code-passenger.json")),
+        };
+        let (record, items) = host.apply_change(&request)?;
+        evidence.extend(items);
+        records.push(record);
     }
     Ok((records, evidence))
 }
 
+/// The standalone host's change: Code Passenger's declared transform line, in this process.
 #[cfg(feature = "code-passenger")]
-fn code_passenger_change(
-    root: &Path,
-    paths: &ExperimentPaths,
-    run_id: &str,
-    index: usize,
-    label: &str,
-    change_spec: &Path,
-) -> Result<(MutationRecord, Option<Evidence>), String> {
+pub(crate) fn code_passenger_change(
+    change: &ChangeRequest,
+) -> Result<(MutationRecord, Vec<Evidence>), String> {
     use code_passenger::lines::CodePassenger;
     use xccute_contract::CompositeShellCommand;
 
-    let root = absolute(root).map_err(|e| e.to_string())?;
-    let change_spec = if change_spec.is_absolute() {
-        change_spec.to_path_buf()
-    } else {
-        root.join(change_spec)
-    };
-    let record_path = paths
-        .evidence(run_id)
-        .join(format!("mutation-{index:03}-code-passenger.json"));
+    let (root, change_spec, record_path) = (&change.root, change.spec.clone(), change.record.clone());
+    let label = change.label.as_str();
 
     // Build the Code Passenger line from its own Simple Impl/XCCUTE declaration.
     // No hand-built process command and no shell string is introduced here.
@@ -74,7 +70,7 @@ fn code_passenger_change(
     let outcome = code_passenger::lines::run_argv(&argv, Path::new("code-passenger"));
     let record = MutationRecord {
         label: label.to_owned(),
-        backend: MutationBackend::CodePassenger,
+        backend: change.backend,
         spec: change_spec,
         display,
         status: outcome.code,
@@ -99,23 +95,22 @@ fn code_passenger_change(
         ));
     }
 
-    let evidence = record.transform_record.as_ref().map(|path| Evidence {
-        kind: "code_passenger_transform".into(),
-        name: label.to_owned(),
-        path: path.clone(),
-    });
+    let evidence = record
+        .transform_record
+        .iter()
+        .map(|path| Evidence {
+            kind: "code_passenger_transform".into(),
+            name: label.to_owned(),
+            path: path.clone(),
+        })
+        .collect();
     Ok((record, evidence))
 }
 
 #[cfg(not(feature = "code-passenger"))]
-fn code_passenger_change(
-    _root: &Path,
-    _paths: &ExperimentPaths,
-    _run_id: &str,
-    _index: usize,
-    _label: &str,
-    _change_spec: &Path,
-) -> Result<(MutationRecord, Option<Evidence>), String> {
+pub(crate) fn code_passenger_change(
+    _change: &ChangeRequest,
+) -> Result<(MutationRecord, Vec<Evidence>), String> {
     Err("experiments was built without the `code-passenger` feature".into())
 }
 
@@ -130,7 +125,7 @@ fn absolute(path: &Path) -> std::io::Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CommandSpec, MutationChange, MutationPlan, Protocol};
+    use crate::{CommandSpec, MutationBackend, MutationChange, MutationPlan, Protocol};
 
     #[test]
     fn bounded_refuses_raw_intervention_commands() {

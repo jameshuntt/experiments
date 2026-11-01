@@ -3,11 +3,11 @@
 use experiments::{
     CommandSpec, DifferencesRequest, ExperimentSpec, ExperimentTarget, MeasurementParser,
     MeasurementPhase, MeasurementPlan, MeasurementSpec, MutationBackend, MutationChange,
-    MutationMode, MutationPlan, PromotionPolicy, Protocol, Verification, SCHEMA,
+    MutationMode, MutationPlan, PromotionPolicy, Protocol, SCHEMA, Verification,
 };
 use scientific_method::{
-    Comparator, Control, Criterion, DependentVariable, Direction, Hypothesis,
-    IndependentVariable, Operand, Prediction, Question, ScientificMethod,
+    Comparator, Control, Criterion, DependentVariable, Direction, Hypothesis, IndependentVariable,
+    Operand, Prediction, Question, ScientificMethod,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -49,7 +49,9 @@ pub fn rich_spec(root: impl Into<PathBuf>) -> ExperimentSpec {
         Hypothesis::new("the candidate improves latency")
             .with_rationale("the intervention removes avoidable work"),
     )
-    .question(Question::new("Does the candidate improve latency without regression?"))
+    .question(Question::new(
+        "Does the candidate improve latency without regression?",
+    ))
     .prediction(Prediction::new("candidate latency is lower"))
     .prediction(Prediction::new("verification remains successful"))
     .independent(
@@ -104,7 +106,10 @@ pub fn rich_spec(root: impl Into<PathBuf>) -> ExperimentSpec {
             label: Some("rich fixture".into()),
         },
         protocol: Protocol {
-            prepare: vec![command("prepare one", "printf", &["prepare"]), command("prepare two", "printf", &["again"])],
+            prepare: vec![
+                command("prepare one", "printf", &["prepare"]),
+                command("prepare two", "printf", &["again"]),
+            ],
             baseline: vec![command("baseline", "printf", &["baseline"])],
             intervention: vec![command("intervention", "printf", &["candidate"])],
             candidate: vec![command("candidate", "printf", &["candidate"])],
@@ -119,7 +124,10 @@ pub fn rich_spec(root: impl Into<PathBuf>) -> ExperimentSpec {
             }],
         },
         verification: Verification {
-            commands: vec![command("verify one", "true", &[]), command("verify two", "true", &[])],
+            commands: vec![
+                command("verify one", "true", &[]),
+                command("verify two", "true", &[]),
+            ],
         },
         measurements: MeasurementPlan {
             measurements: vec![
@@ -186,11 +194,8 @@ path = "src/lib.rs"
 "#,
     )
     .expect("write fixture Cargo.toml");
-    fs::write(
-        root.join("src/lib.rs"),
-        "pub fn existing() -> u64 { 1 }\n",
-    )
-    .expect("write fixture lib");
+    fs::write(root.join("src/lib.rs"), "pub fn existing() -> u64 { 1 }\n")
+        .expect("write fixture lib");
 }
 
 pub fn write_make_struct_change(path: &Path, name: &str, struct_name: &str, field_ty: &str) {
