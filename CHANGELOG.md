@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 (2026-11-01)
+
+- Adds a pre-Custodian qualification suite covering rich cross-format read/write round-trips, schema rejection and conditional requirements, result codecs, runner phase ordering, measurement parsers, fail-fast and cleanup behavior, PathGen run layout, CLI exit semantics, optional-feature refusal contracts, and real Code Passenger success/failure transforms on dependency-free Rust fixture workspaces.
+- Validates `experiments.result.v3` on result reads so stale or foreign result documents are refused just like stale experiment specs.
+- Restores strict `clippy -- -D warnings`, adds rustdoc warnings-as-errors, and tests no-default, Differences-only, Code-Passenger-only, and all-feature builds before trusted publishing.
+
 ## 0.3.0 (2026-11-01)
 
 - Replaces the fake JSON-with-`.1o` experiment codec with real `core-1o` parsing and schema validation.

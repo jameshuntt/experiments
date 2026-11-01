@@ -1,8 +1,5 @@
-# Tests every push and pull request on the newest Rust and on the oldest one
-# this crate supports (rust-version in Cargo.toml), and runs clippy. On main,
-# once both pass, publishes to crates.io if Cargo.toml's version is not there yet
-# and CHANGELOG.md has its dated entry. Publishing uses crates.io trusted
-# publishing: no stored token.
+# Qualification gate for experiments: oldest/newest supported Rust, every feature
+# shape, formatting, strict clippy, docs, package integrity, then trusted publish.
 name: CI
 
 on:
@@ -17,7 +14,7 @@ env:
 
 jobs:
   test:
-    name: test on Rust ${{ matrix.rust }}
+    name: all features on Rust ${{ matrix.rust }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -31,23 +28,46 @@ jobs:
       - name: Dependency versions the oldest supported Rust can build
         if: matrix.rust != 'stable'
         run: CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo +stable generate-lockfile
-      - name: Test
+      - name: Unit, integration, doctest, real Code Passenger qualification
         run: cargo test --all-features
-      - name: Package
+      - name: Package integrity
         run: cargo package --allow-dirty
 
-  clippy:
+  feature-matrix:
+    name: feature contract — ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: no optional backends
+            args: --no-default-features
+          - name: differences only
+            args: --no-default-features --features differences
+          - name: code passenger only
+            args: --no-default-features --features code-passenger
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test feature shape
+        run: cargo test ${{ matrix.args }}
+
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features
+      - name: Clippy is warning-free
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Public documentation is warning-free
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --no-deps --all-features
 
   publish:
-    needs: [test, clippy]
+    needs: [test, feature-matrix, quality]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency: publish

@@ -140,6 +140,18 @@ Exit status is declared on the typed command surface:
 - `2` do not promote
 - `3` inconclusive
 
+## Qualification before Custodian
+
+The release gate deliberately proves the standalone boundary before Custodian consumes it:
+
+- rich experiment specs round-trip through real 1o, JSON, TOML, YAML and YML without semantic drift;
+- the shipped 1o schema is discovered by `core-1o` and rejects unknown keys, wrong types, missing required keys and conditional criterion omissions;
+- runner tests prove baseline measurement precedes intervention, candidate measurement follows it, bounded mode refuses raw intervention before prepare, unbounded mode executes declared XCCUTE intervention, all measurement parsers record the expected scalar, cleanup failure remains evidence, and fail-fast phases stop later work;
+- PathGen run/result/evidence/receipt/difference directories are asserted from a real run;
+- CLI tests lock exit 0/1/2/3 to promote/error/do-not-promote/inconclusive;
+- Code Passenger is exercised end-to-end on a dependency-free Rust fixture: a real `make_struct` ChangeSpec is cargo-proved, written, checkpointed and returned as experiment evidence, while a deliberately uncompilable transform is proved to leave the specimen unchanged;
+- CI tests all features on stable and Rust 1.90, plus no-default, Differences-only and Code-Passenger-only shapes, with `clippy -D warnings`, rustdoc warnings-as-errors, package integrity and trusted publishing.
+
 ## Custodian
 
 Custodian-specific execution is intentionally not implemented in this release.

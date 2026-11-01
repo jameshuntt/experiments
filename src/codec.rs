@@ -1,4 +1,4 @@
-use crate::{ExperimentResult, ExperimentSpec, SCHEMA};
+use crate::{ExperimentResult, ExperimentSpec, RESULT_SCHEMA, SCHEMA};
 use core_1o::engine::{validate_ast, Lexer, Node, NodeValue, Parser};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -70,7 +70,17 @@ pub fn write_spec(path: impl AsRef<Path>, spec: &ExperimentSpec) -> io::Result<(
 /// supported for explicit result export/import; a result-specific 1o schema is
 /// not faked by putting JSON behind a `.1o` suffix.
 pub fn read_result(path: impl AsRef<Path>) -> io::Result<ExperimentResult> {
-    read_serde(path.as_ref())
+    let result: ExperimentResult = read_serde(path.as_ref())?;
+    if result.schema != RESULT_SCHEMA {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "experiment result schema is `{}`, expected `{RESULT_SCHEMA}`",
+                result.schema
+            ),
+        ));
+    }
+    Ok(result)
 }
 
 pub fn write_result(path: impl AsRef<Path>, result: &ExperimentResult) -> io::Result<()> {
