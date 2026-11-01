@@ -75,16 +75,11 @@ pub struct PromotionPolicy {
     pub require_verification: bool,
 }
 
-const fn yes() -> bool {
-    true
-}
+const fn yes() -> bool { true }
 
 impl Default for PromotionPolicy {
     fn default() -> Self {
-        Self {
-            require_supported: true,
-            require_verification: true,
-        }
+        Self { require_supported: true, require_verification: true }
     }
 }
 
@@ -109,9 +104,7 @@ pub struct ExperimentSpec {
     pub promotion: PromotionPolicy,
 }
 
-fn schema() -> String {
-    SCHEMA.to_owned()
-}
+fn schema() -> String { SCHEMA.to_owned() }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandRecord {
@@ -160,6 +153,4 @@ pub struct ExperimentResult {
     pub promotion: PromotionDecision,
 }
 
-fn result_schema() -> String {
-    RESULT_SCHEMA.to_owned()
-}
+fn result_schema() -> String { RESULT_SCHEMA.to_owned() }

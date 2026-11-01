@@ -1,9 +1,5 @@
 use pathgen::{AppPathRole, PathPolicy};
-use std::{
-    error::Error,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{error::Error, fs, path::{Path, PathBuf}};
 
 const APP: &str = "experiments";
 const SPECS: &str = "specs";
@@ -27,27 +23,13 @@ impl ExperimentPaths {
         Ok(Self { data, state })
     }
 
-    pub fn specs(&self) -> PathBuf {
-        self.data.join(SPECS)
-    }
-    pub fn runs(&self) -> PathBuf {
-        self.state.join(RUNS)
-    }
-    pub fn run(&self, run_id: &str) -> PathBuf {
-        self.runs().join(run_id)
-    }
-    pub fn result(&self, run_id: &str) -> PathBuf {
-        self.run(run_id).join(RESULTS).join("result.1o")
-    }
-    pub fn evidence(&self, run_id: &str) -> PathBuf {
-        self.run(run_id).join(EVIDENCE)
-    }
-    pub fn receipts(&self, run_id: &str) -> PathBuf {
-        self.run(run_id).join(RECEIPTS)
-    }
-    pub fn differences(&self, run_id: &str) -> PathBuf {
-        self.run(run_id).join(DIFFERENCES)
-    }
+    pub fn specs(&self) -> PathBuf { self.data.join(SPECS) }
+    pub fn runs(&self) -> PathBuf { self.state.join(RUNS) }
+    pub fn run(&self, run_id: &str) -> PathBuf { self.runs().join(run_id) }
+    pub fn result(&self, run_id: &str) -> PathBuf { self.run(run_id).join(RESULTS).join("result.1o") }
+    pub fn evidence(&self, run_id: &str) -> PathBuf { self.run(run_id).join(EVIDENCE) }
+    pub fn receipts(&self, run_id: &str) -> PathBuf { self.run(run_id).join(RECEIPTS) }
+    pub fn differences(&self, run_id: &str) -> PathBuf { self.run(run_id).join(DIFFERENCES) }
 
     pub fn ensure_run(&self, run_id: &str) -> std::io::Result<()> {
         fs::create_dir_all(self.evidence(run_id))?;

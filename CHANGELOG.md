@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-11-01)
+
+- Adds GitHub Actions trusted publishing so releases are published to crates.io by CI after tests and clippy pass.
+
 ## 0.1.0 (2026-11-01)
 
 - Adds declarative experiment specs and `.1o` JSON codec.
