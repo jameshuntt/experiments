@@ -1,7 +1,7 @@
 {
-  "schema": "experiments.spec.v1",
+  "schema": "experiments.spec.v2",
   "id": "minimal-latency",
-  "description": "A minimal declarative experiment showing baseline/candidate measurements and separate promotion.",
+  "description": "A minimal declarative experiment with measurements taken at their declared experimental phases.",
   "scientific_method": {
     "question": { "text": "Does the candidate lower latency?" },
     "hypothesis": { "statement": "the candidate lowers latency", "rationale": null },
@@ -18,14 +18,47 @@
     }]
   },
   "target": { "root": ".", "label": "example" },
-  "protocol": { "prepare": [], "baseline": [], "intervention": [], "candidate": [], "cleanup": [] },
+  "protocol": {
+    "prepare": [],
+    "baseline": [],
+    "intervention": [],
+    "candidate": [],
+    "cleanup": []
+  },
   "verification": { "commands": [] },
   "measurements": {
     "measurements": [
-      { "condition": "baseline", "name": "latency", "unit": "ms", "parser": "number", "command": { "label": "baseline latency", "program": "printf", "args": ["100"], "cwd": null } },
-      { "condition": "candidate", "name": "latency", "unit": "ms", "parser": "number", "command": { "label": "candidate latency", "program": "printf", "args": ["90"], "cwd": null } }
+      {
+        "phase": "baseline",
+        "condition": "baseline",
+        "name": "latency",
+        "unit": "ms",
+        "parser": "number",
+        "command": {
+          "label": "baseline latency",
+          "program": "printf",
+          "args": ["100"],
+          "cwd": null
+        }
+      },
+      {
+        "phase": "candidate",
+        "condition": "candidate",
+        "name": "latency",
+        "unit": "ms",
+        "parser": "number",
+        "command": {
+          "label": "candidate latency",
+          "program": "printf",
+          "args": ["90"],
+          "cwd": null
+        }
+      }
     ]
   },
   "differences": [],
-  "promotion": { "require_supported": true, "require_verification": true }
+  "promotion": {
+    "require_supported": true,
+    "require_verification": true
+  }
 }

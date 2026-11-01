@@ -2,8 +2,8 @@ use scientific_method::{MethodEvaluation, Observations, ScientificMethod};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub const SCHEMA: &str = "experiments.spec.v1";
-pub const RESULT_SCHEMA: &str = "experiments.result.v1";
+pub const SCHEMA: &str = "experiments.spec.v2";
+pub const RESULT_SCHEMA: &str = "experiments.result.v2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExperimentTarget {
@@ -12,6 +12,8 @@ pub struct ExperimentTarget {
     pub label: Option<String>,
 }
 
+/// Declarative argv-safe operation. `program` and `args` are lowered into
+/// `xccute_runtime::CommandSpec`; they are never concatenated into a shell line.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandSpec {
     pub label: String,
@@ -51,8 +53,18 @@ pub enum MeasurementParser {
     ExitSuccess,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeasurementPhase {
+    Baseline,
+    Candidate,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeasurementSpec {
+    /// When this observation is collected. Baseline observations are taken
+    /// before intervention; candidate observations are taken after candidate.
+    pub phase: MeasurementPhase,
     pub condition: String,
     pub name: String,
     #[serde(default)]
@@ -75,11 +87,16 @@ pub struct PromotionPolicy {
     pub require_verification: bool,
 }
 
-const fn yes() -> bool { true }
+const fn yes() -> bool {
+    true
+}
 
 impl Default for PromotionPolicy {
     fn default() -> Self {
-        Self { require_supported: true, require_verification: true }
+        Self {
+            require_supported: true,
+            require_verification: true,
+        }
     }
 }
 
@@ -104,7 +121,9 @@ pub struct ExperimentSpec {
     pub promotion: PromotionPolicy,
 }
 
-fn schema() -> String { SCHEMA.to_owned() }
+fn schema() -> String {
+    SCHEMA.to_owned()
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandRecord {
@@ -112,6 +131,9 @@ pub struct CommandRecord {
     pub label: String,
     pub program: String,
     pub args: Vec<String>,
+    pub cwd: PathBuf,
+    /// XCCUTE's display rendering of the argv-safe command contract.
+    pub display: String,
     pub status: i32,
     pub stdout: String,
     pub stderr: String,
@@ -153,4 +175,6 @@ pub struct ExperimentResult {
     pub promotion: PromotionDecision,
 }
 
-fn result_schema() -> String { RESULT_SCHEMA.to_owned() }
+fn result_schema() -> String {
+    RESULT_SCHEMA.to_owned()
+}
