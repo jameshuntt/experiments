@@ -1,0 +1,30 @@
+[package]
+name = "experiments"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+authors = ["James Hunt <james@1o.business>"]
+license = "MIT OR Apache-2.0"
+description = "A reproducible software experiment instrument: specs, protocols, measurements, evidence, scientific evaluation, and results."
+repository = "https://github.com/jameshuntt/experiments"
+readme = "README.md"
+keywords = ["experiments", "science", "benchmark", "reproducibility"]
+categories = ["science", "development-tools"]
+include = ["src/**", "examples/**", "Cargo.toml", "LICENSE*", "README*", "CHANGELOG*"]
+
+[[bin]]
+name = "experiments"
+path = "src/main.rs"
+
+[features]
+default = ["differences"]
+differences = []
+custodian = ["dep:custodian_kit", "dep:differences_kit"]
+
+[dependencies]
+scientific-method = { version = "0.2", features = ["serde"] }
+pathgen = "0.1.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+custodian_kit = { version = "0.4", optional = true }
+differences_kit = { version = "0.1.1", optional = true }

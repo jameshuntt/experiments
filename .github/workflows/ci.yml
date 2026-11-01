@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: test on Rust ${{ matrix.rust }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable, "1.89"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      - name: Dependency versions the oldest supported Rust can build
+        if: matrix.rust != 'stable'
+        run: CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo +stable generate-lockfile
+      - name: Test
+        run: cargo test --all-features
+      - name: Package
+        run: cargo package --allow-dirty
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
