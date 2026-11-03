@@ -18,6 +18,7 @@ pub fn command(label: &str, program: &str, args: &[&str]) -> CommandSpec {
         program: program.into(),
         args: args.iter().map(|value| (*value).to_owned()).collect(),
         cwd: None,
+        env: Vec::new(),
     }
 }
 
@@ -107,7 +108,13 @@ pub fn rich_spec(root: impl Into<PathBuf>) -> ExperimentSpec {
         },
         protocol: Protocol {
             prepare: vec![
-                command("prepare one", "printf", &["prepare"]),
+                CommandSpec {
+                    env: vec![
+                        experiments::EnvVar { name: "MODE".into(), value: "fast".into() },
+                        experiments::EnvVar { name: "QUOTED".into(), value: "a \"word\" and a\ttab".into() },
+                    ],
+                    ..command("prepare one", "printf", &["prepare"])
+                },
                 command("prepare two", "printf", &["again"]),
             ],
             baseline: vec![command("baseline", "printf", &["baseline"])],

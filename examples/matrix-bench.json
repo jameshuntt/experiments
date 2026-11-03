@@ -1,0 +1,40 @@
+{
+  "schema": "experiments.spec.v3",
+  "id": "matrix-bench",
+  "description": "One benchmark trial: the matcher, the population and its geographic concentration are the campaign's factors; the corpus, the seed and the demand model are held by its controls; each arrives as an EXPERIMENT_* environment variable.",
+  "scientific_method": {
+    "question": { "text": "How do the matcher, the population and its concentration move the match latency?" },
+    "hypothesis": { "statement": "the simd matcher lowers the match latency at every population", "rationale": null },
+    "predictions": [],
+    "independent_variables": [
+      { "name": "matcher", "description": "scalar or simd" },
+      { "name": "population", "description": "how many records are matched against" },
+      { "name": "geo_concentration", "description": "how concentrated the records are" }
+    ],
+    "dependent_variables": [{ "name": "latency", "unit": "ms", "description": "the match latency" }],
+    "controls": [
+      { "name": "corpus", "description": null },
+      { "name": "seed", "description": null },
+      { "name": "demand_model", "description": null }
+    ],
+    "criteria": []
+  },
+  "target": { "root": ".", "label": "bench" },
+  "protocol": { "prepare": [], "baseline": [], "intervention": [], "candidate": [], "cleanup": [] },
+  "mutation": { "mode": "bounded", "backend": "code_passenger", "changes": [] },
+  "verification": { "commands": [] },
+  "measurements": {
+    "measurements": [
+      {
+        "phase": "candidate",
+        "condition": "candidate",
+        "name": "latency",
+        "unit": "ms",
+        "command": { "label": "match latency", "program": "printf", "args": ["1"], "cwd": null },
+        "parser": "number"
+      }
+    ]
+  },
+  "differences": [],
+  "promotion": { "require_supported": false, "require_verification": true }
+}

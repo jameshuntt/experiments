@@ -22,6 +22,18 @@ pub struct CommandSpec {
     pub args: Vec<String>,
     #[serde(default)]
     pub cwd: Option<PathBuf>,
+    /// Environment variables the program is given, in order, each exactly as written (no shell, no substitution).
+    /// A campaign's binding of a trial's factor assignment, controls and blocks arrives here
+    /// ([`crate::campaign::Binding`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub env: Vec<EnvVar>,
+}
+
+/// One environment variable a command's program is given.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnvVar {
+    pub name: String,
+    pub value: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -176,6 +188,9 @@ pub struct CommandRecord {
     pub program: String,
     pub args: Vec<String>,
     pub cwd: PathBuf,
+    /// The environment variables the program was given ([`CommandSpec::env`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub env: Vec<EnvVar>,
     /// XCCUTE's display rendering of the argv-safe command contract.
     pub display: String,
     pub status: i32,

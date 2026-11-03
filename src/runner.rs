@@ -354,6 +354,9 @@ fn run_command_here(
     let contract = XccuteCommandSpec::new(spec.program.clone()).args(spec.args.clone());
     let display = contract.build();
     let mut command = contract.to_command();
+    for var in &spec.env {
+        command.env(&var.name, &var.value);
+    }
     let output = command.current_dir(cwd).output()?;
 
     Ok(CommandRecord {
@@ -362,6 +365,7 @@ fn run_command_here(
         program: spec.program.clone(),
         args: spec.args.clone(),
         cwd: cwd.to_path_buf(),
+        env: spec.env.clone(),
         display,
         status: output.status.code().unwrap_or(-1),
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),

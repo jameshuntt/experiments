@@ -66,6 +66,50 @@ jobs:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --no-deps --all-features
 
+  consumers:
+    # custodian (the host of `experiment run` and `experiment campaign`) as it is now, on the branch of this push's
+    # name when it has one, else its default branch, built and tested against this checkout (its ../experiments), with
+    # its own siblings beside it and the writer its tests run. A custodian whose experiments requirement does not take
+    # this version stays on the version it names: said, and not built.
+    name: custodian against this checkout
+    runs-on: ubuntu-latest
+    env:
+      CONSUMER: 1o-llc/custodian
+      # custodian's own siblings (its CI's SIBLINGS)
+      SIBLINGS: 1o-llc/custodian_kit jameshuntt/code_passenger
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: experiments
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # custodian's tests run rustfmt's check
+          components: rustfmt
+      - name: Clone custodian and its siblings beside this checkout
+        run: |
+          branch="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          for repo in $CONSUMER $SIBLINGS; do
+            name="${repo#*/}"
+            git clone --depth 1 --branch "$branch" "https://github.com/$repo.git" "$name" 2>/dev/null \
+              || git clone --depth 1 "https://github.com/$repo.git" "$name"
+            echo "$name: $(git -C "$name" rev-parse --abbrev-ref HEAD) $(git -C "$name" rev-parse --short HEAD)"
+          done
+      - name: Build the writer custodian's tests run (code-passenger)
+        run: cargo build --manifest-path code_passenger/Cargo.toml --bin code-passenger
+      - name: Test custodian when its requirement takes this version
+        env:
+          CUSTODIAN_TEST_PASSENGER_REQUIRED: "1"
+        run: |
+          set -o pipefail
+          version=$(cargo metadata --no-deps --format-version 1 --manifest-path experiments/Cargo.toml | jq -r '.packages[0].version')
+          if ! cargo metadata --format-version 1 --manifest-path custodian/Cargo.toml > /dev/null 2> "$RUNNER_TEMP/custodian.log"; then
+            cat "$RUNNER_TEMP/custodian.log"
+            grep -qE 'failed to select a version for the requirement .experiments = ' "$RUNNER_TEMP/custodian.log" || exit 1
+            echo "custodian requires an experiments that $version is not: it stays on the version it names; not built here"
+            exit 0
+          fi
+          (cd custodian && cargo test --all-features)
+
   publish:
     needs: [test, feature-matrix, quality]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

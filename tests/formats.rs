@@ -218,6 +218,7 @@ fn sample_result() -> ExperimentResult {
             program: "true".into(),
             args: Vec::new(),
             cwd: ".".into(),
+            env: Vec::new(),
             display: "true".into(),
             status: 0,
             stdout: String::new(),

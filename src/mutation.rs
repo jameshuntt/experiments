@@ -136,6 +136,7 @@ mod tests {
             program: "touch".into(),
             args: vec!["src/lib.rs".into()],
             cwd: None,
+            env: Vec::new(),
         });
         assert!(validate(&spec).unwrap_err().contains("bounded mutation mode"));
     }

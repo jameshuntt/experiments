@@ -437,6 +437,30 @@
                   "cwd": {
                     "type": "string",
                     "description": "Optional working directory, relative to target root unless absolute."
+                  },
+                  "env": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The variable's name."
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": "Its value, given to the program as is (no shell, no substitution)."
+                        }
+                      },
+                      "additionalProperties": false,
+                      "x-1o-single-keys": true,
+                      "required": [
+                        "name",
+                        "value"
+                      ]
+                    },
+                    "x-serde-key": "env",
+                    "description": "One environment variable the program is given; repeat in order."
                   }
                 },
                 "additionalProperties": false,
@@ -473,6 +497,30 @@
                   "cwd": {
                     "type": "string",
                     "description": "Optional working directory, relative to target root unless absolute."
+                  },
+                  "env": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The variable's name."
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": "Its value, given to the program as is (no shell, no substitution)."
+                        }
+                      },
+                      "additionalProperties": false,
+                      "x-1o-single-keys": true,
+                      "required": [
+                        "name",
+                        "value"
+                      ]
+                    },
+                    "x-serde-key": "env",
+                    "description": "One environment variable the program is given; repeat in order."
                   }
                 },
                 "additionalProperties": false,
@@ -509,6 +557,30 @@
                   "cwd": {
                     "type": "string",
                     "description": "Optional working directory, relative to target root unless absolute."
+                  },
+                  "env": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The variable's name."
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": "Its value, given to the program as is (no shell, no substitution)."
+                        }
+                      },
+                      "additionalProperties": false,
+                      "x-1o-single-keys": true,
+                      "required": [
+                        "name",
+                        "value"
+                      ]
+                    },
+                    "x-serde-key": "env",
+                    "description": "One environment variable the program is given; repeat in order."
                   }
                 },
                 "additionalProperties": false,
@@ -545,6 +617,30 @@
                   "cwd": {
                     "type": "string",
                     "description": "Optional working directory, relative to target root unless absolute."
+                  },
+                  "env": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The variable's name."
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": "Its value, given to the program as is (no shell, no substitution)."
+                        }
+                      },
+                      "additionalProperties": false,
+                      "x-1o-single-keys": true,
+                      "required": [
+                        "name",
+                        "value"
+                      ]
+                    },
+                    "x-serde-key": "env",
+                    "description": "One environment variable the program is given; repeat in order."
                   }
                 },
                 "additionalProperties": false,
@@ -581,6 +677,30 @@
                   "cwd": {
                     "type": "string",
                     "description": "Optional working directory, relative to target root unless absolute."
+                  },
+                  "env": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The variable's name."
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": "Its value, given to the program as is (no shell, no substitution)."
+                        }
+                      },
+                      "additionalProperties": false,
+                      "x-1o-single-keys": true,
+                      "required": [
+                        "name",
+                        "value"
+                      ]
+                    },
+                    "x-serde-key": "env",
+                    "description": "One environment variable the program is given; repeat in order."
                   }
                 },
                 "additionalProperties": false,
@@ -666,6 +786,30 @@
                   "cwd": {
                     "type": "string",
                     "description": "Optional working directory, relative to target root unless absolute."
+                  },
+                  "env": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The variable's name."
+                        },
+                        "value": {
+                          "type": "string",
+                          "description": "Its value, given to the program as is (no shell, no substitution)."
+                        }
+                      },
+                      "additionalProperties": false,
+                      "x-1o-single-keys": true,
+                      "required": [
+                        "name",
+                        "value"
+                      ]
+                    },
+                    "x-serde-key": "env",
+                    "description": "One environment variable the program is given; repeat in order."
                   }
                 },
                 "additionalProperties": false,
@@ -728,6 +872,30 @@
                       "cwd": {
                         "type": "string",
                         "description": "Optional working directory, relative to target root unless absolute."
+                      },
+                      "env": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "description": "The variable's name."
+                            },
+                            "value": {
+                              "type": "string",
+                              "description": "Its value, given to the program as is (no shell, no substitution)."
+                            }
+                          },
+                          "additionalProperties": false,
+                          "x-1o-single-keys": true,
+                          "required": [
+                            "name",
+                            "value"
+                          ]
+                        },
+                        "x-serde-key": "env",
+                        "description": "One environment variable the program is given; repeat in order."
                       }
                     },
                     "additionalProperties": false,

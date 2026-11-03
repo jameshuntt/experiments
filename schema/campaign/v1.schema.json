@@ -1,0 +1,787 @@
+{
+  "type": "object",
+  "properties": {
+    "campaign": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "rigor": {
+          "type": "string",
+          "enum": [
+            "exploratory",
+            "controlled",
+            "strict"
+          ],
+          "description": "exploratory, controlled (default) or strict."
+        },
+        "policy": {
+          "type": "object",
+          "properties": {
+            "on_findings": {
+              "type": "string",
+              "enum": [
+                "continue",
+                "stop"
+              ],
+              "description": "After a do-not-promote, an undecided, or a finding (continue by default)."
+            },
+            "on_refusal": {
+              "type": "string",
+              "enum": [
+                "continue",
+                "stop"
+              ],
+              "description": "After a refused node (stop by default)."
+            },
+            "on_error": {
+              "type": "string",
+              "enum": [
+                "continue",
+                "stop"
+              ],
+              "description": "After a node that could not run to its conclusion (stop by default)."
+            },
+            "on_undecided": {
+              "type": "string",
+              "enum": [
+                "restore",
+                "accept"
+              ],
+              "description": "What an undecided candidate becomes (restore by default)."
+            },
+            "max_parallel": {
+              "type": "integer",
+              "description": "At most this many nodes at once (1 by default)."
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true,
+          "required": [],
+          "description": "The campaign's policies."
+        },
+        "factor": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "level": {
+                "type": "array",
+                "items": {
+                  "x-1o-any-scalar": true
+                },
+                "x-serde-key": "levels",
+                "minItems": 1,
+                "description": "One level; repeat for each."
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "experiment",
+                  "campaign"
+                ],
+                "description": "experiment (an independent variable every experiment it is set for declares) or campaign (the campaign's own)."
+              }
+            },
+            "additionalProperties": false,
+            "x-1o-single-keys": true,
+            "required": [
+              "name",
+              "level"
+            ],
+            "description": "An independent variable."
+          },
+          "x-serde-key": "factors",
+          "description": "A factor; repeat for each."
+        },
+        "control": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "x-1o-any-scalar": true,
+                "description": "The value it is held at."
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "x-1o-single-keys": true,
+            "required": [
+              "name",
+              "value"
+            ],
+            "description": "A value held fixed for every trial."
+          },
+          "x-serde-key": "controls",
+          "description": "A control; repeat for each."
+        },
+        "block": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "level": {
+                "type": "array",
+                "items": {
+                  "x-1o-any-scalar": true
+                },
+                "x-serde-key": "levels",
+                "minItems": 1,
+                "description": "One level; repeat for each."
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "x-1o-single-keys": true,
+            "required": [
+              "name",
+              "level"
+            ],
+            "description": "A nuisance variable trials are grouped by."
+          },
+          "x-serde-key": "blocks",
+          "description": "A block; repeat for each."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-serde-key": "exclude",
+          "description": "A path (relative to the governed root) the scientific state leaves out; repeat for each."
+        },
+        "run": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "x-1o-kind": "step"
+          },
+          "x-serde-key": "run",
+          "description": "A `run` step, in order with the others."
+        },
+        "sequence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "x-1o-kind": "step"
+          },
+          "x-serde-key": "sequence",
+          "description": "A `sequence` step, in order with the others."
+        },
+        "parallel": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "x-1o-kind": "step"
+          },
+          "x-serde-key": "parallel",
+          "description": "A `parallel` step, in order with the others."
+        },
+        "repeat": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "x-1o-kind": "step"
+          },
+          "x-serde-key": "repeat",
+          "description": "A `repeat` step, in order with the others."
+        },
+        "sweep": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "x-1o-kind": "step"
+          },
+          "x-serde-key": "sweep",
+          "description": "A `sweep` step, in order with the others."
+        }
+      },
+      "additionalProperties": false,
+      "x-1o-single-keys": true,
+      "required": [
+        "id"
+      ],
+      "x-1o-steps": "steps",
+      "x-1o-step-schemas": {
+        "run": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The node's stable id."
+            },
+            "spec": {
+              "type": "string",
+              "description": "The experiment spec, relative to the campaign file."
+            },
+            "set": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "factor": {
+                    "type": "string",
+                    "description": "A declared factor."
+                  },
+                  "value": {
+                    "x-1o-any-scalar": true,
+                    "description": "One of its levels."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "factor",
+                  "value"
+                ],
+                "description": "One factor set to one of its levels."
+              },
+              "x-serde-key": "set",
+              "description": "A factor's level; repeat for each factor."
+            },
+            "block": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "A declared block."
+                  },
+                  "level": {
+                    "x-1o-any-scalar": true,
+                    "description": "One of its levels."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "name",
+                  "level"
+                ],
+                "description": "One block set to one of its levels."
+              },
+              "x-serde-key": "blocks",
+              "description": "A block's level; repeat for each block."
+            },
+            "after": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "x-serde-key": "after",
+              "description": "A node or step that must finish first; repeat for each."
+            },
+            "from": {
+              "type": "string",
+              "description": "The one node (or sequence) whose accepted state this starts from; the campaign's start when none."
+            },
+            "workspace": {
+              "type": "string",
+              "enum": [
+                "shared",
+                "isolated",
+                "continue"
+              ],
+              "description": "Where the candidate is made: shared (the governed project), isolated (a new governed copy of the state parent's accepted state), continue (the state parent's isolated workspace, in place)."
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true,
+          "required": [
+            "id",
+            "spec"
+          ],
+          "description": "One experiment."
+        },
+        "sequence": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A name `after` (and a sequence's `from`) may use."
+            },
+            "after": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "x-serde-key": "after",
+              "description": "A node or step that must finish first; repeat for each."
+            },
+            "from": {
+              "type": "string",
+              "description": "The one node (or sequence) whose accepted state this starts from; the campaign's start when none."
+            },
+            "workspace": {
+              "type": "string",
+              "enum": [
+                "shared",
+                "isolated",
+                "continue"
+              ],
+              "description": "Where the candidate is made: shared (the governed project), isolated (a new governed copy of the state parent's accepted state), continue (the state parent's isolated workspace, in place)."
+            },
+            "run": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "run",
+              "description": "A `run` step, in order with the others."
+            },
+            "sequence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "sequence",
+              "description": "A `sequence` step, in order with the others."
+            },
+            "parallel": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "parallel",
+              "description": "A `parallel` step, in order with the others."
+            },
+            "repeat": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "repeat",
+              "description": "A `repeat` step, in order with the others."
+            },
+            "sweep": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "sweep",
+              "description": "A `sweep` step, in order with the others."
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true,
+          "required": [],
+          "x-1o-steps": "steps",
+          "description": "Steps in order over one evolving state."
+        },
+        "parallel": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A name `after` (and a sequence's `from`) may use."
+            },
+            "after": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "x-serde-key": "after",
+              "description": "A node or step that must finish first; repeat for each."
+            },
+            "from": {
+              "type": "string",
+              "description": "The one node (or sequence) whose accepted state this starts from; the campaign's start when none."
+            },
+            "workspace": {
+              "type": "string",
+              "enum": [
+                "shared",
+                "isolated",
+                "continue"
+              ],
+              "description": "Where the candidate is made: shared (the governed project), isolated (a new governed copy of the state parent's accepted state), continue (the state parent's isolated workspace, in place)."
+            },
+            "run": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "run",
+              "description": "A `run` step, in order with the others."
+            },
+            "sequence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "sequence",
+              "description": "A `sequence` step, in order with the others."
+            },
+            "parallel": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "parallel",
+              "description": "A `parallel` step, in order with the others."
+            },
+            "repeat": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "repeat",
+              "description": "A `repeat` step, in order with the others."
+            },
+            "sweep": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "x-1o-kind": "step"
+              },
+              "x-serde-key": "sweep",
+              "description": "A `sweep` step, in order with the others."
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true,
+          "required": [],
+          "x-1o-steps": "steps",
+          "description": "Branches from one state, each isolated."
+        },
+        "repeat": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The repeat's id: its trials are <id>.r01, <id>.r02, ..."
+            },
+            "times": {
+              "type": "integer",
+              "description": "How many independent trials."
+            },
+            "after": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "x-serde-key": "after",
+              "description": "A node or step that must finish first; repeat for each."
+            },
+            "from": {
+              "type": "string",
+              "description": "The one node (or sequence) whose accepted state this starts from; the campaign's start when none."
+            },
+            "run": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The node's stable id."
+                },
+                "spec": {
+                  "type": "string",
+                  "description": "The experiment spec, relative to the campaign file."
+                },
+                "set": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "factor": {
+                        "type": "string",
+                        "description": "A declared factor."
+                      },
+                      "value": {
+                        "x-1o-any-scalar": true,
+                        "description": "One of its levels."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "x-1o-single-keys": true,
+                    "required": [
+                      "factor",
+                      "value"
+                    ],
+                    "description": "One factor set to one of its levels."
+                  },
+                  "x-serde-key": "set",
+                  "description": "A factor's level; repeat for each factor."
+                },
+                "block": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "A declared block."
+                      },
+                      "level": {
+                        "x-1o-any-scalar": true,
+                        "description": "One of its levels."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "x-1o-single-keys": true,
+                    "required": [
+                      "name",
+                      "level"
+                    ],
+                    "description": "One block set to one of its levels."
+                  },
+                  "x-serde-key": "blocks",
+                  "description": "A block's level; repeat for each block."
+                },
+                "after": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "x-serde-key": "after",
+                  "description": "A node or step that must finish first; repeat for each."
+                },
+                "from": {
+                  "type": "string",
+                  "description": "The one node (or sequence) whose accepted state this starts from; the campaign's start when none."
+                },
+                "workspace": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "isolated",
+                    "continue"
+                  ],
+                  "description": "Where the candidate is made: shared (the governed project), isolated (a new governed copy of the state parent's accepted state), continue (the state parent's isolated workspace, in place)."
+                }
+              },
+              "additionalProperties": false,
+              "x-1o-single-keys": true,
+              "required": [
+                "id",
+                "spec"
+              ],
+              "description": "One experiment."
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true,
+          "required": [
+            "id",
+            "times",
+            "run"
+          ],
+          "description": "N independent trials of one run, each isolated, from one source state."
+        },
+        "sweep": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The sweep's id: its trials are <id>.t01[.b01].r01, ..."
+            },
+            "spec": {
+              "type": "string",
+              "description": "The experiment spec, relative to the campaign file."
+            },
+            "design": {
+              "type": "string",
+              "enum": [
+                "factorial",
+                "one_factor_at_a_time",
+                "explicit"
+              ],
+              "description": "The design."
+            },
+            "factor": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "x-serde-key": "factors",
+              "description": "A factor the design moves; repeat in order."
+            },
+            "reference": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "factor": {
+                    "type": "string",
+                    "description": "A declared factor."
+                  },
+                  "value": {
+                    "x-1o-any-scalar": true,
+                    "description": "One of its levels."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "factor",
+                  "value"
+                ],
+                "description": "One factor set to one of its levels."
+              },
+              "x-serde-key": "reference",
+              "description": "One-factor-at-a-time: a moved factor's reference level."
+            },
+            "treatment": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "set": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "factor": {
+                          "type": "string",
+                          "description": "A declared factor."
+                        },
+                        "value": {
+                          "x-1o-any-scalar": true,
+                          "description": "One of its levels."
+                        }
+                      },
+                      "additionalProperties": false,
+                      "x-1o-single-keys": true,
+                      "required": [
+                        "factor",
+                        "value"
+                      ],
+                      "description": "One factor set to one of its levels."
+                    },
+                    "x-serde-key": "set",
+                    "description": "A factor's level; repeat for each factor."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "name"
+                ],
+                "description": "A named treatment of an explicit design."
+              },
+              "x-serde-key": "treatments",
+              "description": "Explicit: one treatment."
+            },
+            "set": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "factor": {
+                    "type": "string",
+                    "description": "A declared factor."
+                  },
+                  "value": {
+                    "x-1o-any-scalar": true,
+                    "description": "One of its levels."
+                  }
+                },
+                "additionalProperties": false,
+                "x-1o-single-keys": true,
+                "required": [
+                  "factor",
+                  "value"
+                ],
+                "description": "One factor set to one of its levels."
+              },
+              "x-serde-key": "set",
+              "description": "A level every treatment holds."
+            },
+            "repeats": {
+              "type": "integer",
+              "description": "Independent executions of each treatment in each block."
+            },
+            "block": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "x-serde-key": "blocks",
+              "description": "A block the design is crossed with."
+            },
+            "after": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "x-serde-key": "after",
+              "description": "A node or step that must finish first; repeat for each."
+            },
+            "from": {
+              "type": "string",
+              "description": "The one node (or sequence) whose accepted state this starts from; the campaign's start when none."
+            }
+          },
+          "additionalProperties": false,
+          "x-1o-single-keys": true,
+          "required": [
+            "id",
+            "spec",
+            "design"
+          ],
+          "description": "A design's trials, expanded before anything runs."
+        }
+      },
+      "description": "One campaign."
+    }
+  },
+  "additionalProperties": false,
+  "x-1o-single-keys": true,
+  "required": [
+    "campaign"
+  ],
+  "description": "experiments v1 1o campaign document",
+  "title": "experiments campaign v1"
+}

@@ -37,6 +37,7 @@ impl ExperimentHost for Answering {
             program: command.program.clone(),
             args: command.args.clone(),
             cwd: cwd.to_path_buf(),
+            env: command.env.clone(),
             display: format!("hosted {}", command.program),
             status: 0,
             stdout: stdout.into(),

@@ -1,7 +1,8 @@
 {
   "versions": {
     "v1": {
-      "experiment": "v1"
+      "experiment": "v1",
+      "campaign": "v1"
     }
   }
 }

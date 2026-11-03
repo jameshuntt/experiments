@@ -1,3 +1,4 @@
+use crate::campaign::{CampaignProgress, CampaignResult, CampaignSpec, CAMPAIGN_PROGRESS_SCHEMA, CAMPAIGN_RESULT_SCHEMA, CAMPAIGN_SCHEMA};
 use crate::{ExperimentResult, ExperimentSpec, RESULT_SCHEMA, SCHEMA};
 use core_1o::engine::{validate_ast, Lexer, Node, NodeValue, Parser};
 use serde::de::DeserializeOwned;
@@ -6,6 +7,7 @@ use serde_json::{Map, Value};
 use std::{fs, io, path::Path};
 
 const EXPERIMENT_1O_SCHEMA: &str = include_str!("../schema/experiment/v1.schema.json");
+const CAMPAIGN_1O_SCHEMA: &str = include_str!("../schema/campaign/v1.schema.json");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Format {
@@ -16,10 +18,11 @@ enum Format {
 }
 
 impl Format {
-    fn of(path: &Path) -> io::Result<Self> {
+    /// A document's format, by its name: `v1.<name>.1o.<modifier>` (or `.1o`) is 1o; `.json`, `.toml`, `.yaml`, `.yml`.
+    fn of(path: &Path, modifier: &str) -> io::Result<Self> {
         if let Some(name) = path.file_name().and_then(|v| v.to_str())
             && let Some(record) = core_1o::utils::parse_filename(name)
-            && record.modifier == "experiment"
+            && record.modifier == modifier
         {
             return Ok(Self::OneO);
         }
@@ -30,7 +33,7 @@ impl Format {
             Some("yaml" | "yml") => Ok(Self::Yaml),
             other => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("unsupported experiment format {other:?}; use .1o.experiment, .1o, .json, .toml, .yaml or .yml"),
+                format!("unsupported {modifier} format {other:?}; use .1o.{modifier}, .1o, .json, .toml, .yaml or .yml"),
             )),
         }
     }
@@ -39,7 +42,7 @@ impl Format {
 pub fn read_spec(path: impl AsRef<Path>) -> io::Result<ExperimentSpec> {
     let path = path.as_ref();
     let text = fs::read_to_string(path)?;
-    let spec: ExperimentSpec = match Format::of(path)? {
+    let spec: ExperimentSpec = match Format::of(path, "experiment")? {
         Format::OneO => read_oneo_spec(&text)?,
         Format::Json => serde_json::from_str(&text).map_err(io::Error::other)?,
         Format::Toml => toml::from_str(&text).map_err(io::Error::other)?,
@@ -56,7 +59,7 @@ pub fn read_spec(path: impl AsRef<Path>) -> io::Result<ExperimentSpec> {
 
 pub fn write_spec(path: impl AsRef<Path>, spec: &ExperimentSpec) -> io::Result<()> {
     let path = path.as_ref();
-    let text = match Format::of(path)? {
+    let text = match Format::of(path, "experiment")? {
         Format::OneO => write_oneo_spec(spec)?,
         Format::Json => serde_json::to_string_pretty(spec).map_err(io::Error::other)? + "\n",
         Format::Toml => toml::to_string_pretty(spec).map_err(io::Error::other)?,
@@ -86,9 +89,77 @@ pub fn write_result(path: impl AsRef<Path>, result: &ExperimentResult) -> io::Re
     write_serde(path.as_ref(), result)
 }
 
+/// A campaign document: real 1o (`v1.<name>.1o.campaign`, validated by `core-1o` against the shipped campaign
+/// schema at every depth of its composition), or its JSON, TOML, YAML or YML twin. Every format refuses a key the
+/// campaign does not declare, and the schema word must be `experiments.campaign.v1`.
+pub fn read_campaign(path: impl AsRef<Path>) -> io::Result<CampaignSpec> {
+    let path = path.as_ref();
+    let text = fs::read_to_string(path)?;
+    let spec: CampaignSpec = match Format::of(path, "campaign")? {
+        Format::OneO => read_oneo_campaign(&text)?,
+        Format::Json => serde_json::from_str(&text).map_err(invalid)?,
+        Format::Toml => toml::from_str(&text).map_err(invalid)?,
+        Format::Yaml => serde_yaml::from_str(&text).map_err(invalid)?,
+    };
+    if spec.schema != CAMPAIGN_SCHEMA {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("campaign schema is `{}`, expected `{CAMPAIGN_SCHEMA}`", spec.schema),
+        ));
+    }
+    Ok(spec)
+}
+
+pub fn write_campaign(path: impl AsRef<Path>, spec: &CampaignSpec) -> io::Result<()> {
+    let path = path.as_ref();
+    let text = match Format::of(path, "campaign")? {
+        Format::OneO => write_oneo_campaign(spec)?,
+        Format::Json => serde_json::to_string_pretty(spec).map_err(io::Error::other)? + "\n",
+        Format::Toml => toml::to_string_pretty(spec).map_err(io::Error::other)?,
+        Format::Yaml => serde_yaml::to_string(spec).map_err(io::Error::other)?,
+    };
+    fs::write(path, text)
+}
+
+/// A campaign result, as JSON, TOML or YAML (no 1o result schema is faked).
+pub fn read_campaign_result(path: impl AsRef<Path>) -> io::Result<CampaignResult> {
+    let result: CampaignResult = read_serde(path.as_ref())?;
+    if result.schema != CAMPAIGN_RESULT_SCHEMA {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("campaign result schema is `{}`, expected `{CAMPAIGN_RESULT_SCHEMA}`", result.schema),
+        ));
+    }
+    Ok(result)
+}
+
+pub fn write_campaign_result(path: impl AsRef<Path>, result: &CampaignResult) -> io::Result<()> {
+    write_serde(path.as_ref(), result)
+}
+
+/// A campaign run's progress (what a resume reads), as JSON, TOML or YAML.
+pub fn read_campaign_progress(path: impl AsRef<Path>) -> io::Result<CampaignProgress> {
+    let progress: CampaignProgress = read_serde(path.as_ref())?;
+    if progress.schema != CAMPAIGN_PROGRESS_SCHEMA {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("campaign progress schema is `{}`, expected `{CAMPAIGN_PROGRESS_SCHEMA}`", progress.schema),
+        ));
+    }
+    Ok(progress)
+}
+
+pub fn write_campaign_progress(path: impl AsRef<Path>, progress: &CampaignProgress) -> io::Result<()> {
+    write_serde(path.as_ref(), progress)
+}
+
+fn invalid(e: impl std::fmt::Display) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, e.to_string())
+}
+
 fn read_serde<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
     let text = fs::read_to_string(path)?;
-    match Format::of(path)? {
+    match Format::of(path, "experiment")? {
         Format::Json => serde_json::from_str(&text).map_err(io::Error::other),
         Format::Toml => toml::from_str(&text).map_err(io::Error::other),
         Format::Yaml => serde_yaml::from_str(&text).map_err(io::Error::other),
@@ -100,7 +171,7 @@ fn read_serde<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
 }
 
 fn write_serde<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
-    let text = match Format::of(path)? {
+    let text = match Format::of(path, "experiment")? {
         Format::Json => serde_json::to_string_pretty(value).map_err(io::Error::other)? + "\n",
         Format::Toml => toml::to_string_pretty(value).map_err(io::Error::other)?,
         Format::Yaml => serde_yaml::to_string(value).map_err(io::Error::other)?,
@@ -148,6 +219,65 @@ fn write_oneo_spec(spec: &ExperimentSpec) -> io::Result<String> {
     Ok(out)
 }
 
+fn campaign_schema() -> io::Result<&'static Value> {
+    static SCHEMA: std::sync::OnceLock<Result<Value, String>> = std::sync::OnceLock::new();
+    SCHEMA
+        .get_or_init(|| serde_json::from_str(CAMPAIGN_1O_SCHEMA).map_err(|e| e.to_string()))
+        .as_ref()
+        .map_err(|e| io::Error::other(e.clone()))
+}
+
+/// The schema of a composition step (`run`, `sequence`, `parallel`, `repeat`, `sweep`): the campaign schema's
+/// `x-1o-step-schemas`, the one place each step is declared, read at every depth.
+fn step_schema(kind: &str) -> io::Result<&'static Value> {
+    campaign_schema()?
+        .pointer(&format!("/properties/campaign/x-1o-step-schemas/{kind}"))
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, format!("`{kind}` is no campaign step")))
+}
+
+/// A key whose occurrences are composition steps (their schema is the step's, read in order with the others).
+fn is_step(schema: &Value) -> bool {
+    schema.pointer("/items/x-1o-kind").and_then(Value::as_str) == Some("step")
+}
+
+/// One step node: validated against its step schema (at any depth), then read.
+fn step_to_json(node: &Node) -> io::Result<Value> {
+    let schema = step_schema(&node.key)?;
+    let mut diagnostics = Vec::new();
+    core_1o::engine::validate_node(node, schema, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("1o campaign schema, `{}`: {diagnostics:?}", node.key)));
+    }
+    node_to_json(node, schema)
+}
+
+fn read_oneo_campaign(text: &str) -> io::Result<CampaignSpec> {
+    let nodes = Parser::new(Lexer::new(text).tokenize())
+        .parse()
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, format!("1o parse: {error:?}")))?;
+    let schema = campaign_schema()?;
+    let mut diagnostics = Vec::new();
+    validate_ast(&nodes, schema, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("1o campaign schema: {diagnostics:?}")));
+    }
+    let root = entries_to_json(&nodes, schema)?;
+    let value = root
+        .get("campaign")
+        .cloned()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "1o campaign block is missing"))?;
+    serde_json::from_value(value).map_err(invalid)
+}
+
+fn write_oneo_campaign(spec: &CampaignSpec) -> io::Result<String> {
+    let schema = campaign_schema()?;
+    let mut root = Map::new();
+    root.insert("campaign".into(), serde_json::to_value(spec).map_err(io::Error::other)?);
+    let mut out = String::new();
+    render_object(&Value::Object(root), schema, 0, &mut out)?;
+    Ok(out)
+}
+
 fn serde_key(oneo_key: &str, schema: &Value) -> String {
     schema
         .get("x-serde-key")
@@ -163,6 +293,9 @@ fn entries_to_json(nodes: &[Node], schema: &Value) -> io::Result<Value> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "1o schema object has no properties"))?;
     let mut object = Map::new();
     for (oneo_key, child_schema) in properties {
+        if is_step(child_schema) {
+            continue;
+        }
         let matches: Vec<&Node> = nodes.iter().filter(|node| node.key == *oneo_key).collect();
         let key = serde_key(oneo_key, child_schema);
         let is_array = child_schema.get("type").and_then(Value::as_str) == Some("array");
@@ -182,6 +315,16 @@ fn entries_to_json(nodes: &[Node], schema: &Value) -> io::Result<Value> {
         } else {
             object.insert(key, node_to_json(matches[0], child_schema)?);
         }
+    }
+    // a composition's steps: every step key, in the order written, as `{ "<kind>": { ... } }`
+    if let Some(key) = schema.get("x-1o-steps").and_then(Value::as_str) {
+        let mut steps = Vec::new();
+        for node in nodes.iter().filter(|n| properties.get(&n.key).is_some_and(is_step)) {
+            let mut one = Map::new();
+            one.insert(node.key.clone(), step_to_json(node)?);
+            steps.push(Value::Object(one));
+        }
+        object.insert(key.to_owned(), Value::Array(steps));
     }
     Ok(Value::Object(object))
 }
@@ -295,6 +438,9 @@ fn render_object(value: &Value, schema: &Value, indent: usize, out: &mut String)
         .and_then(Value::as_object)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "1o schema object has no properties"))?;
     for (oneo_key, child_schema) in properties {
+        if is_step(child_schema) {
+            continue;
+        }
         let key = serde_key(oneo_key, child_schema);
         let Some(child) = object.get(&key) else { continue };
         if child.is_null() {
@@ -310,6 +456,14 @@ fn render_object(value: &Value, schema: &Value, indent: usize, out: &mut String)
             }
         } else {
             render_entry(oneo_key, child, child_schema, indent, out)?;
+        }
+    }
+    if let Some(key) = schema.get("x-1o-steps").and_then(Value::as_str) {
+        for step in object.get(key).and_then(Value::as_array).into_iter().flatten() {
+            let Some((kind, value)) = step.as_object().filter(|o| o.len() == 1).and_then(|o| o.iter().next()) else {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "a step is one `{ kind: step }`"));
+            };
+            render_entry(kind, value, step_schema(kind)?, indent, out)?;
         }
     }
     Ok(())

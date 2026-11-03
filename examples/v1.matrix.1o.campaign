@@ -1,0 +1,54 @@
+campaign {
+  schema "experiments.campaign.v1"
+  id "matrix"
+  description "The matcher × population × concentration matrix, ten independent trials each, on one machine."
+  rigor "controlled"
+  policy {
+    on_findings "continue"
+    max_parallel 4
+  }
+  factor {
+    name "matcher"
+    level "scalar"
+    level "simd"
+  }
+  factor {
+    name "population"
+    level "1K"
+    level "10K"
+    level "100K"
+    level "1M"
+  }
+  factor {
+    name "geo_concentration"
+    level "low"
+    level "medium"
+    level "high"
+  }
+  control {
+    name "corpus"
+    value "corpus-v1"
+  }
+  control {
+    name "seed"
+    value 7
+  }
+  control {
+    name "demand_model"
+    value "poisson"
+  }
+  block {
+    name "machine"
+    level "lab-1"
+  }
+  sweep {
+    id "grid"
+    spec "matrix-bench.json"
+    design "factorial"
+    factor "matcher"
+    factor "population"
+    factor "geo_concentration"
+    repeats 10
+    block "machine"
+  }
+}

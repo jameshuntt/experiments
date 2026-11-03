@@ -152,12 +152,76 @@ The release gate deliberately proves the standalone boundary before Custodian co
 - Code Passenger is exercised end-to-end on a dependency-free Rust fixture: a real `make_struct` ChangeSpec is cargo-proved, written, checkpointed and returned as experiment evidence, while a deliberately uncompilable transform is proved to leave the specimen unchanged;
 - CI tests all features on stable and Rust 1.90, plus no-default, Differences-only and Code-Passenger-only shapes, with `clippy -D warnings`, rustdoc warnings-as-errors, package integrity and trusted publishing.
 
+## Campaigns
+
+A campaign composes experiments over an evolving accepted state, and expands
+experimental designs over factors. Its document (`CampaignSpec`, schema
+`experiments.campaign.v1`) is real 1o (`v1.<name>.1o.campaign`, validated at
+every depth of its composition against `schema/campaign/v1.schema.json`) or its
+JSON, TOML, YAML or YML twin; every format refuses a key the campaign does not
+declare.
+
+```text
+campaign {
+  id "history"
+  sequence {
+    run { id "A" spec "a.json" }
+    run { id "B" spec "b.json" }
+  }
+  repeat { id "again" times 10 from "B" run { id "b" spec "b.json" } }
+  sweep { id "grid" spec "bench.json" design "factorial" factor "matcher" factor "population" repeats 10 }
+}
+```
+
+- `run`: one experiment, with its factor levels (`set`) and blocks; at the top
+  level it may name `after` (nodes that finish first) and `from` (the one node
+  whose accepted state it starts from) and its `workspace` (`shared`,
+  `isolated`, `continue`): the flat form.
+- `sequence`: each step starts from the accepted state the one before left.
+- `parallel`: branches from one state, each in its own isolated workspace, no merge.
+- `repeat`: N independent trials of one treatment, each isolated, from one state.
+- `sweep`: a design over one experiment: `factorial` (every combination),
+  `one_factor_at_a_time` (each factor moved alone from its `reference`),
+  `explicit` (named `treatment`s), each treatment repeated, crossed with blocks.
+- `factor` (an independent variable: an experiment's own, or scope `campaign`),
+  `control` (a value held fixed), `block` (a nuisance variable, never a treatment).
+- `rigor`: `exploratory`, `controlled` (default), `strict`; `policy`:
+  `on_findings`, `on_refusal`, `on_error`, `on_undecided`, `max_parallel`.
+
+`LoadedCampaign::load` makes one deterministic `CampaignPlan` before anything
+runs, or refuses it with every reason (duplicate ids, missing files and
+references, cycles, ambiguous state parents, two writers on one workspace,
+zero repeats, unknown factors and levels, bad blocks and controls, impossible
+designs, unbounded mutation in the shared workspace, what strict cannot
+establish). A sequence and its flat form are one plan with one digest.
+
+A trial's assignment reaches its experiment as environment variables every
+command is given through `CommandSpec::env` (`EXPERIMENT_FACTOR_<NAME>`,
+`EXPERIMENT_CONTROL_<NAME>`, `EXPERIMENT_BLOCK_<NAME>`, `EXPERIMENT_TRIAL`,
+`EXPERIMENT_REPLICATE`, `EXPERIMENT_TREATMENT`, `EXPERIMENT_CAMPAIGN`): typed
+levels in one text form, no templating, no shell. Each command's record keeps
+what it was given.
+
+`CampaignRunner` decides what a node's execution makes of its candidate
+(promotion, the undecided policy, an undeclared change by rigor), applies the
+stop policies, keeps the progress a resume reads (refused when anything the run
+was made from moved), and makes the `CampaignResult`
+(`experiments.campaign-result.v1`): every node as planned and as it ran, every
+state digest, every result's path and digest, the order things ran in, and the
+group summaries (counts; n, mean, median, min, max, sample standard deviation of
+each numeric measurement), with no significance claimed.
+
+A campaign runs only under a host that governs the workspaces: Custodian's
+`custodian experiment campaign CAMPAIGN [STORAGE] [--job JOB] [--plan] [--again]`.
+`examples/v1.matrix.1o.campaign` is a 2 × 4 × 3 factorial with ten repeats
+(240 trials) over `examples/matrix-bench.json`.
+
 ## Custodian
 
-Custodian-specific execution is intentionally not implemented in this release.
-`experiments` first establishes the real document/schema layer and the
-standalone Code Passenger mutation backend. Custodian can then integrate as a
-thin managed backend over the same experiment contract.
+Custodian hosts an experiment (`custodian experiment run`) through this crate's
+`ExperimentHost`, and governs a campaign (`custodian experiment campaign`):
+its workspaces, its writer, its receipts, every source change made by Code
+Passenger through Custodian's preflight and transform lines.
 
 ## License
 
