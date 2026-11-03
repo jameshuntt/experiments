@@ -54,10 +54,43 @@ written against 0.3 does not build; nothing is removed. Links are pinned to 017f
 - **CI** ([ci.yml L69](https://github.com/jameshuntt/experiments/blob/017f082/.github/workflows/ci.yml#L69)): `consumers` tests custodian (its branch of this push's name, else its
   default) against this checkout, with its siblings and the writer.
 
-Tests: `tests/campaign.rs` (20: formats and refusals at every depth, sequence ≡ flat, fifty ordered nodes, parallel,
-repeat, the 240-trial factorial, explicit ≡ factorial assignments, one-factor-at-a-time, blocks, 39 refusals, strict
-and controlled, the binding through a real run, decisions, stops, resume, summaries); `tests/formats.rs` round-trips
-`env` through 1o, JSON, TOML, YAML and YML. `cargo test --all-features`: 53 passed, 0 failed (stable and Rust 1.90);
+What a review found, and its fixes (links pinned to fb3c1cd):
+
+- **`from` a sequence that ends in many states** resolved to the node before its last step. A sequence now ends
+  where its last step ends ([plan.rs L721](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/plan.rs#L721)); its lineage goes on through a parallel inside it
+  ([plan.rs L403](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/plan.rs#L403)), but `from` it is refused when its last step is a parallel, repeat or sweep
+  ([plan.rs L997](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/plan.rs#L997)). [`from_a_sequence_that_ends_in_many_states_is_refused`](https://github.com/jameshuntt/experiments/blob/fb3c1cd/tests/campaign.rs#L764).
+- **An undeclared change accepted where another node starts from it** (exploratory, shared). It is never accepted in
+  the shared workspace, a `continue` lineage, or an isolated node another starts from; exploratory keeps it only in a
+  disposable isolated workspace ([run.rs L445](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/run.rs#L445), `PlanNode::disposable` [plan.rs L1092](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/plan.rs#L1092)).
+  [`exploratory_keeps_an_undeclared_change_only_where_nothing_starts_from_it`](https://github.com/jameshuntt/experiments/blob/fb3c1cd/tests/campaign.rs#L801).
+- **Determinism.** Nodes are ordered dependencies first, then by id ([plan.rs L1030](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/plan.rs#L1030)), not by where a
+  document lists them; sweep trials are `<id>[.bNN].tNN.rNN`, the expansion's order; groups by id. Experiment paths are
+  resolved lexically (`sub/../a.json` is `a.json`, [plan.rs L286](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/plan.rs#L286)) and must stay inside the campaign's
+  folder ([plan.rs L302](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/plan.rs#L302)). [`equivalent_documents_make_one_plan_whatever_order_and_spelling`](https://github.com/jameshuntt/experiments/blob/fb3c1cd/tests/campaign.rs#L774).
+- **Levels and excludes.** A text level holding a NUL is refused ([plan.rs L559](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/plan.rs#L559)); an exclude that is
+  the whole root (`.`) is refused ([plan.rs L566](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/plan.rs#L566)).
+  [`a_level_no_environment_can_carry_and_an_exclude_of_everything_are_refused`](https://github.com/jameshuntt/experiments/blob/fb3c1cd/tests/campaign.rs#L790).
+- **Summaries pooled across blocks.** Every summary is one treatment in one block combination from one starting state
+  (`start_digest`, [result.rs L335](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/result.rs#L335)); a factor level's marginal is within one block combination and one
+  starting state ([result.rs L384](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/result.rs#L384)); nothing is pooled across either.
+- **A discarded workspace** has no accepted state; `left` is the state it was left in, as read ([run.rs L134](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/run.rs#L134)).
+- **A stop** names its node and exactly the nodes running then (`StopRecord`, [run.rs L182](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/run.rs#L182),
+  [run.rs L503](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/run.rs#L503)); every node not started is skipped by policy, and says so.
+  [`a_stop_names_the_nodes_that_were_running_and_skips_the_rest_by_policy`](https://github.com/jameshuntt/experiments/blob/fb3c1cd/tests/campaign.rs#L815).
+- **A resume** keeps each earlier attempt (refused, failed, skipped, interrupted) with its result
+  ([run.rs L295](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/run.rs#L295), [result.rs L215](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/result.rs#L215)); the progress keeps the tools the run began with
+  ([run.rs L217](https://github.com/jameshuntt/experiments/blob/fb3c1cd/src/campaign/run.rs#L217)).
+- The planner's lookups are maps and its order a queue (40000 trials no longer quadratic).
+- **CI.** `consumers` tests custodian only when `cargo metadata` resolves its experiments to this checkout (no registry
+  source, this manifest), else says so ([ci.yml L114](https://github.com/jameshuntt/experiments/blob/fb3c1cd/.github/workflows/ci.yml#L114)); publish waits for it
+  ([ci.yml L123](https://github.com/jameshuntt/experiments/blob/fb3c1cd/.github/workflows/ci.yml#L123)).
+
+Tests: `tests/campaign.rs` (25: formats and refusals at every depth, sequence ≡ flat, equivalent orders and spellings,
+fifty ordered nodes, parallel, repeat, the 240-trial factorial, explicit ≡ factorial assignments,
+one-factor-at-a-time, blocks, 39 refusals, strict and controlled, disposable workspaces, the binding through a real run,
+decisions, stops, resume and attempts, summaries); `tests/formats.rs` round-trips `env` through 1o, JSON, TOML, YAML
+and YML. `cargo test --all-features`: 58 passed, 0 failed (stable and Rust 1.90);
 no-default, differences-only and code-passenger-only shapes pass; `clippy --all-targets --all-features -D warnings`
 and rustdoc `-D warnings` clean; `cargo package` builds and its tests pass.
 
