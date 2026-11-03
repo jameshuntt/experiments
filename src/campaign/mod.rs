@@ -23,5 +23,5 @@ mod spec;
 pub use bind::Binding;
 pub use plan::{CampaignError, CampaignPlan, LoadedCampaign, PlanNode, PlannedGroup, PlannedSpec, PlannedTreatment, PlannedWorkspace, MAX_TRIALS, START};
 pub use result::{CampaignResult, CampaignStatus, Counts, GroupSummary, HostFacts, MarginalSummary, MeasurementSummary, NodeResult, ToolVersion, TrialRef, WorkspaceResult};
-pub use run::{CampaignProgress, CampaignRunner, Decision, Execution, FileRef, NodeRecord, NodeStatus, OrderEvent, StateAction, StateIdentity, WorkspaceState};
+pub use run::{CampaignProgress, CampaignRunner, Decision, Execution, FileRef, NodeRecord, NodeStatus, OrderEvent, StateAction, StateIdentity, StopRecord, WorkspaceState};
 pub use spec::*;

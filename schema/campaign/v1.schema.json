@@ -622,7 +622,7 @@
           "properties": {
             "id": {
               "type": "string",
-              "description": "The sweep's id: its trials are <id>.t01[.b01].r01, ..."
+              "description": "The sweep's id: its trials are <id>[.b01].t01.r01, ..."
             },
             "spec": {
               "type": "string",

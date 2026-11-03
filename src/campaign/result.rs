@@ -51,6 +51,9 @@ pub struct WorkspaceResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last: Option<String>,
     pub discarded: bool,
+    /// Discarded: the state it was left in, as read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub left: Option<StateIdentity>,
 }
 
 /// The plain statistics of one measurement over a group's completed trials.
@@ -90,12 +93,13 @@ pub struct GroupSummary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub varied: Option<String>,
     pub blocks: Vec<BlockAssignment>,
+    /// The state every trial of this summary started from (none: trials that never read a start).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_digest: Option<String>,
     pub requested: usize,
     pub completed: usize,
     /// Each trial: its node, its replicate, its result.
     pub trials: Vec<TrialRef>,
-    /// The distinct states its trials started from (one, when the trials were replicates).
-    pub start_digests: Vec<String>,
     pub outcomes: BTreeMap<String, usize>,
     pub promotions: BTreeMap<String, usize>,
     pub states: BTreeMap<String, usize>,
@@ -113,14 +117,16 @@ pub struct TrialRef {
     pub result: Option<FileRef>,
 }
 
-/// A sweep's measurements by one factor's level, or one block's, over every treatment that has it.
+/// A sweep's measurements by one factor's level, over the treatments that have it, within one block combination and
+/// one starting state (never pooled across either).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MarginalSummary {
     pub group: String,
-    /// `factor` or `block`.
-    pub by: String,
-    pub name: String,
+    pub factor: String,
     pub level: Level,
+    pub blocks: Vec<BlockAssignment>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_digest: Option<String>,
     pub trials: usize,
     pub completed: usize,
     pub measurements: Vec<MeasurementSummary>,
@@ -201,6 +207,12 @@ pub struct CampaignResult {
     pub findings: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<String>,
+    /// The stop: its node, its reason, and exactly the nodes that were running then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stop: Option<super::run::StopRecord>,
+    /// Earlier attempts of nodes that ran again on a resume, kept with their results.
+    #[serde(default)]
+    pub attempts: Vec<NodeRecord>,
     pub status: CampaignStatus,
 }
 
@@ -247,7 +259,7 @@ impl CampaignRunner {
         };
         let workspaces = plan.workspaces.iter().map(|w| {
             let s = p.workspaces.get(&w.id).cloned().unwrap_or_default();
-            WorkspaceResult { id: w.id.clone(), path: s.path, accepted: s.accepted, last: s.last, discarded: s.discarded }
+            WorkspaceResult { id: w.id.clone(), path: s.path, accepted: if s.discarded { None } else { s.accepted }, left: s.left, last: s.last, discarded: s.discarded }
         }).collect();
         let (summaries, marginals) = summarize(plan, &nodes);
         CampaignResult {
@@ -276,6 +288,8 @@ impl CampaignRunner {
             enforced: facts.enforced,
             findings,
             stopped: p.stopped.clone(),
+            stop: p.stop.clone(),
+            attempts: p.attempts.clone(),
             status,
         }
     }
@@ -314,22 +328,23 @@ fn stats(values: Values) -> Vec<MeasurementSummary> {
 fn summarize(plan: &CampaignPlan, nodes: &[NodeResult]) -> (Vec<GroupSummary>, Vec<MarginalSummary>) {
     let mut summaries = Vec::new();
     let mut marginals = Vec::new();
+    let start_of = |m: &NodeResult| m.run.start.as_ref().map(|s| s.digest.clone());
     for g in &plan.groups {
         let members: Vec<&NodeResult> = nodes.iter().filter(|n| n.plan.group.as_deref() == Some(g.id.as_str())).collect();
-        // one summary per treatment and block combination, in the order the trials were planned
-        let mut keys: Vec<(String, Vec<BlockAssignment>)> = Vec::new();
+        // one summary per treatment, block combination and starting state, in the order the trials were planned:
+        // nothing is pooled across blocks or across starting states
+        let mut keys: Vec<(String, Vec<BlockAssignment>, Option<String>)> = Vec::new();
         for m in &members {
-            let k = (m.plan.treatment.clone().unwrap_or_default(), m.plan.blocks.clone());
+            let k = (m.plan.treatment.clone().unwrap_or_default(), m.plan.blocks.clone(), start_of(m));
             if !keys.contains(&k) {
                 keys.push(k);
             }
         }
-        for (treatment, blocks) in keys {
-            let trials: Vec<&&NodeResult> = members.iter().filter(|m| m.plan.treatment.as_deref() == Some(treatment.as_str()) && m.plan.blocks == blocks).collect();
+        for (treatment, blocks, start) in keys {
+            let trials: Vec<&&NodeResult> = members.iter().filter(|m| m.plan.treatment.as_deref() == Some(treatment.as_str()) && m.plan.blocks == blocks && start_of(m) == start).collect();
             let t = g.treatments.iter().find(|t| t.name == treatment);
             let mut values = Values::new();
             let (mut outcomes, mut promotions, mut states) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
-            let mut starts: Vec<String> = Vec::new();
             for m in &trials {
                 let r = &m.run;
                 if r.status == NodeStatus::Completed {
@@ -344,11 +359,6 @@ fn summarize(plan: &CampaignPlan, nodes: &[NodeResult]) -> (Vec<GroupSummary>, V
                 if let Some(s) = &r.state {
                     *states.entry(s.word().to_owned()).or_insert(0) += 1;
                 }
-                if let Some(s) = &r.start
-                    && !starts.contains(&s.digest)
-                {
-                    starts.push(s.digest.clone());
-                }
             }
             summaries.push(GroupSummary {
                 group: g.id.clone(),
@@ -358,10 +368,10 @@ fn summarize(plan: &CampaignPlan, nodes: &[NodeResult]) -> (Vec<GroupSummary>, V
                 assignment: t.map(|t| t.assignment.clone()).unwrap_or_default(),
                 varied: t.and_then(|t| t.varied.clone()),
                 blocks,
+                start_digest: start,
                 requested: trials.len(),
                 completed: trials.iter().filter(|m| m.run.status == NodeStatus::Completed).count(),
                 trials: trials.iter().map(|m| TrialRef { node: m.plan.id.clone(), replicate: m.plan.replicate, status: m.run.status, result: m.run.result.clone() }).collect(),
-                start_digests: starts,
                 outcomes,
                 promotions,
                 states,
@@ -371,32 +381,29 @@ fn summarize(plan: &CampaignPlan, nodes: &[NodeResult]) -> (Vec<GroupSummary>, V
         if g.kind != "sweep" {
             continue;
         }
-        // by each factor's level, and each block's
-        let mut by: Vec<(&str, String, Level)> = Vec::new();
-        for f in &g.factors {
-            if let Some(d) = plan.factors.iter().find(|x| &x.name == f) {
-                by.extend(d.levels.iter().map(|l| ("factor", f.clone(), l.clone())));
+        // by each factor's level, within one block combination and one starting state
+        let mut cells: Vec<(Vec<BlockAssignment>, Option<String>)> = Vec::new();
+        for m in &members {
+            let k = (m.plan.blocks.clone(), start_of(m));
+            if !cells.contains(&k) {
+                cells.push(k);
             }
         }
-        for b in &g.blocks {
-            if let Some(d) = plan.blocks.iter().find(|x| &x.name == b) {
-                by.extend(d.levels.iter().map(|l| ("block", b.clone(), l.clone())));
+        for (blocks, start) in cells {
+            for f in &g.factors {
+                let Some(d) = plan.factors.iter().find(|x| &x.name == f) else { continue };
+                for level in &d.levels {
+                    let trials: Vec<&&NodeResult> = members.iter().filter(|m| m.plan.blocks == blocks && start_of(m) == start && m.plan.assignment.iter().any(|a| &a.factor == f && &a.value == level)).collect();
+                    if trials.is_empty() {
+                        continue;
+                    }
+                    let mut values = Values::new();
+                    for m in trials.iter().filter(|m| m.run.status == NodeStatus::Completed) {
+                        collect(&mut values, &m.run);
+                    }
+                    marginals.push(MarginalSummary { group: g.id.clone(), factor: f.clone(), level: level.clone(), blocks: blocks.clone(), start_digest: start.clone(), trials: trials.len(), completed: trials.iter().filter(|m| m.run.status == NodeStatus::Completed).count(), measurements: stats(values) });
+                }
             }
-        }
-        for (kind, name, level) in by {
-            let has = |m: &&&NodeResult| match kind {
-                "factor" => m.plan.assignment.iter().any(|a| a.factor == name && a.value == level),
-                _ => m.plan.blocks.iter().any(|b| b.name == name && b.level == level),
-            };
-            let trials: Vec<&&NodeResult> = members.iter().filter(has).collect();
-            if trials.is_empty() {
-                continue;
-            }
-            let mut values = Values::new();
-            for m in trials.iter().filter(|m| m.run.status == NodeStatus::Completed) {
-                collect(&mut values, &m.run);
-            }
-            marginals.push(MarginalSummary { group: g.id.clone(), by: kind.into(), name, level, trials: trials.len(), completed: trials.iter().filter(|m| m.run.status == NodeStatus::Completed).count(), measurements: stats(values) });
         }
     }
     (summaries, marginals)

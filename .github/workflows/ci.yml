@@ -69,8 +69,9 @@ jobs:
   consumers:
     # custodian (the host of `experiment run` and `experiment campaign`) as it is now, on the branch of this push's
     # name when it has one, else its default branch, built and tested against this checkout (its ../experiments), with
-    # its own siblings beside it and the writer its tests run. A custodian whose experiments requirement does not take
-    # this version stays on the version it names: said, and not built.
+    # its own siblings beside it and the writer its tests run. custodian is tested only when its experiments resolves to
+    # this checkout (a path dependency, no registry source); one that names a version from crates.io, or a version
+    # this checkout is not, is said and not built here.
     name: custodian against this checkout
     runs-on: ubuntu-latest
     env:
@@ -102,16 +103,24 @@ jobs:
         run: |
           set -o pipefail
           version=$(cargo metadata --no-deps --format-version 1 --manifest-path experiments/Cargo.toml | jq -r '.packages[0].version')
-          if ! cargo metadata --format-version 1 --manifest-path custodian/Cargo.toml > /dev/null 2> "$RUNNER_TEMP/custodian.log"; then
+          checkout=$(cd experiments && pwd)/Cargo.toml
+          if ! cargo metadata --format-version 1 --manifest-path custodian/Cargo.toml > "$RUNNER_TEMP/custodian.json" 2> "$RUNNER_TEMP/custodian.log"; then
             cat "$RUNNER_TEMP/custodian.log"
             grep -qE 'failed to select a version for the requirement .experiments = ' "$RUNNER_TEMP/custodian.log" || exit 1
             echo "custodian requires an experiments that $version is not: it stays on the version it names; not built here"
             exit 0
           fi
+          # the experiments custodian resolves: this checkout (no source, this manifest), or not built here
+          resolved=$(jq -r '.packages[] | select(.name == "experiments") | "\(.source) \(.manifest_path)"' "$RUNNER_TEMP/custodian.json")
+          echo "custodian resolves experiments to: $resolved"
+          if [ "$resolved" != "null $checkout" ]; then
+            echo "custodian's experiments is not this checkout (it is $resolved): not built here"
+            exit 0
+          fi
           (cd custodian && cargo test --all-features)
 
   publish:
-    needs: [test, feature-matrix, quality]
+    needs: [test, feature-matrix, quality, consumers]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency: publish

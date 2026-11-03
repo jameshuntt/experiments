@@ -125,9 +125,13 @@ pub struct NodeRecord {
     /// The state its run left.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub candidate: Option<StateIdentity>,
-    /// The workspace's accepted state once it ended.
+    /// The workspace's accepted state once it ended (none when the workspace was discarded: no accepted state is on
+    /// disk).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub accepted: Option<StateIdentity>,
+    /// A discarded workspace: the state it was left in, as read (none when it could not be read).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub left: Option<StateIdentity>,
     /// The experiment as it ran (bound), kept.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bound_spec: Option<FileRef>,
@@ -151,7 +155,7 @@ pub struct NodeRecord {
 
 impl NodeRecord {
     pub fn new(id: &str, status: NodeStatus) -> NodeRecord {
-        NodeRecord { id: id.to_owned(), status, reason: None, promotion: None, outcome: None, state: None, workspace_path: None, start: None, candidate: None, accepted: None, bound_spec: None, result: None, run_id: None, receipts: Vec::new(), evidence: Vec::new(), restore: Vec::new(), findings: Vec::new(), observations: None }
+        NodeRecord { id: id.to_owned(), status, reason: None, promotion: None, outcome: None, state: None, workspace_path: None, start: None, candidate: None, accepted: None, left: None, bound_spec: None, result: None, run_id: None, receipts: Vec::new(), evidence: Vec::new(), restore: Vec::new(), findings: Vec::new(), observations: None }
     }
 }
 
@@ -167,6 +171,18 @@ pub struct WorkspaceState {
     pub last: Option<String>,
     #[serde(default)]
     pub discarded: bool,
+    /// Discarded: the state it was left in, as read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub left: Option<StateIdentity>,
+}
+
+/// Why the campaign stopped: the node and the policy, and exactly which nodes were running then (they ran to their
+/// end); every node not started then was skipped by the policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StopRecord {
+    pub node: String,
+    pub reason: String,
+    pub in_flight: Vec<String>,
 }
 
 /// Everything a campaign run keeps between nodes: what a resume reads.
@@ -191,6 +207,14 @@ pub struct CampaignProgress {
     pub running: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stop: Option<StopRecord>,
+    /// Earlier attempts of nodes that ran again on a resume (refused, failed, skipped, or interrupted), in order.
+    #[serde(default)]
+    pub attempts: Vec<NodeRecord>,
+    /// The tools the run began with (a strict resume refuses others).
+    #[serde(default)]
+    pub tools: Vec<super::ToolVersion>,
     pub seq: u64,
 }
 
@@ -222,6 +246,9 @@ impl CampaignRunner {
             order: Vec::new(),
             running: Vec::new(),
             stopped: None,
+            stop: None,
+            attempts: Vec::new(),
+            tools: Vec::new(),
             seq: 0,
         };
         CampaignRunner { plan, progress }
@@ -261,12 +288,20 @@ impl CampaignRunner {
             why.insert(0, format!("campaign {} run {} cannot resume (run it fresh with --again)", plan.campaign_id, progress.run_id));
             return Err(CampaignError(why));
         }
+        // a node that did not complete runs again; its record is kept among the attempts, its result not orphaned
         let again: Vec<String> = progress.nodes.values().filter(|r| r.status != NodeStatus::Completed).map(|r| r.id.clone()).collect();
         for id in again {
-            progress.nodes.remove(&id);
+            if let Some(r) = progress.nodes.remove(&id) {
+                progress.attempts.push(r);
+            }
         }
-        progress.running.clear();
+        for id in std::mem::take(&mut progress.running) {
+            let mut r = NodeRecord::new(&id, NodeStatus::Refused);
+            r.reason = Some("interrupted: the process ended while it ran; it runs again".into());
+            progress.attempts.push(r);
+        }
         progress.stopped = None;
+        progress.stop = None;
         let mut me = CampaignRunner { plan, progress };
         // a stop the completed nodes decided stands
         let completed: Vec<NodeRecord> = me.plan.nodes.iter().filter_map(|n| me.progress.nodes.get(&n.id).cloned()).collect();
@@ -290,6 +325,13 @@ impl CampaignRunner {
 
     pub fn stopped(&self) -> Option<&str> {
         self.progress.stopped.as_deref()
+    }
+
+    /// The tools the run began with (kept from the first run on resume).
+    pub fn set_tools(&mut self, tools: Vec<super::ToolVersion>) {
+        if self.progress.tools.is_empty() {
+            self.progress.tools = tools;
+        }
     }
 
     /// The campaign's start, read by the host before the first node (kept from the first run on resume).
@@ -399,7 +441,12 @@ impl CampaignRunner {
         if !undeclared.is_empty() {
             let what = format!("undeclared change (no declared change accounts for it): {}", undeclared.join(", "));
             match node.rigor {
-                Rigor::Exploratory => d.findings.push(what),
+                // recorded and kept only where nothing will start from it: a disposable isolated workspace
+                Rigor::Exploratory if node.disposable => d.findings.push(what),
+                Rigor::Exploratory => {
+                    d.findings.push(format!("{what}; a state other nodes start from never takes a change Code Passenger did not make: the candidate is not accepted"));
+                    d.accept = false;
+                }
                 Rigor::Controlled => {
                     d.findings.push(format!("{what}; controlled: the candidate is not accepted"));
                     d.accept = false;
@@ -427,6 +474,7 @@ impl CampaignRunner {
             ws.last = Some(id.clone());
             if record.state == Some(StateAction::Discarded) {
                 ws.discarded = true;
+                ws.left = record.left.clone();
             }
         }
         if record.status == NodeStatus::Completed && record.promotion.is_none() {
@@ -451,12 +499,15 @@ impl CampaignRunner {
             _ => None,
         };
         let why = why.or_else(|| (r.state == Some(StateAction::Discarded) && n.workspace == "shared").then(|| format!("{}: the shared workspace could not be put back to its accepted state", r.id)));
+        if let Some(reason) = &why {
+            self.progress.stop = Some(StopRecord { node: r.id.clone(), reason: reason.clone(), in_flight: self.progress.running.iter().filter(|x| **x != r.id).cloned().collect() });
+        }
         self.progress.stopped = why;
     }
 
     /// Every node not ended, skipped with why (the campaign stopped). Called once nothing runs any more.
     pub fn close(&mut self) {
-        let why = self.progress.stopped.clone().map(|s| format!("the campaign stopped: {s}")).unwrap_or_else(|| "never became ready".into());
+        let why = self.progress.stopped.clone().map(|s| format!("skipped by policy: the campaign stopped before it started ({s})")).unwrap_or_else(|| "never became ready".into());
         let left: Vec<String> = self.plan.nodes.iter().filter(|n| !self.progress.nodes.contains_key(&n.id)).map(|n| n.id.clone()).collect();
         for id in left {
             let mut r = NodeRecord::new(&id, NodeStatus::Skipped);

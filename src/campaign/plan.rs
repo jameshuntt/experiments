@@ -103,6 +103,9 @@ pub struct PlanNode {
     pub from: Option<String>,
     pub workspace: String,
     pub strategy: WorkspaceStrategy,
+    /// Isolated, and no node starts from its accepted state: what it accepts is never anyone's start.
+    #[serde(default)]
+    pub disposable: bool,
     /// Every factor the node sets, in the campaign's declaration order.
     pub assignment: Vec<Assignment>,
     pub controls: Vec<ControlValue>,
@@ -216,10 +219,10 @@ impl LoadedCampaign {
 
     /// Plans `spec`, its experiment paths relative to `base`, over `root`.
     pub fn of(spec: CampaignSpec, base: &Path, root: &Path) -> Result<LoadedCampaign, CampaignError> {
-        let mut errors = Vec::new();
+        let (paths, mut errors) = spec_paths(&spec.steps);
         let mut experiments = BTreeMap::new();
         let mut planned = BTreeMap::new();
-        for p in spec_paths(&spec.steps) {
+        for p in paths {
             match read_experiment(base, root, &p) {
                 Ok((e, ps)) => {
                     experiments.insert(p.clone(), e);
@@ -249,12 +252,19 @@ impl LoadedCampaign {
 }
 
 /// Every experiment path the steps name, in order, once each.
-fn spec_paths(steps: &[Step]) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let mut add = |p: &Path| {
-        let s = path_text(p);
-        if !out.contains(&s) {
-            out.push(s);
+fn spec_paths(steps: &[Step]) -> (Vec<String>, Vec<String>) {
+    let (mut out, mut errors): (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut add = |p: &Path| match inside(p) {
+        Ok(s) => {
+            if seen.insert(s.clone()) {
+                out.push(s);
+            }
+        }
+        Err(e) => {
+            if !errors.contains(&e) {
+                errors.push(e);
+            }
         }
     };
     fn walk(steps: &[Step], add: &mut dyn FnMut(&Path)) {
@@ -268,12 +278,33 @@ fn spec_paths(steps: &[Step]) -> Vec<String> {
         }
     }
     walk(steps, &mut add);
-    out
+    (out, errors)
 }
 
-/// A path as the plan writes it: `/` between its parts, `.` parts dropped.
+/// A path as the plan writes it: `.` dropped and `..` resolved lexically, `/` between its parts (`sub/../a.json` is
+/// `a.json`). A path that climbs above where it starts keeps its leading `..` (and is refused where it is planned).
 fn path_text(p: &Path) -> String {
-    p.components().filter(|c| !matches!(c, Component::CurDir)).map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/")
+    let mut parts: Vec<String> = Vec::new();
+    for c in p.components() {
+        match c {
+            Component::CurDir => {}
+            Component::ParentDir if parts.last().is_some_and(|l| l != ".." && !l.is_empty()) => {
+                parts.pop();
+            }
+            Component::RootDir => parts.push(String::new()),
+            other => parts.push(other.as_os_str().to_string_lossy().into_owned()),
+        }
+    }
+    parts.join("/")
+}
+
+/// An experiment path the campaign may name: inside the campaign's folder.
+fn inside(p: &Path) -> Result<String, String> {
+    let t = path_text(p);
+    if p.is_absolute() || t.is_empty() || t == ".." || t.starts_with("../") {
+        return Err(format!("experiment `{}`: name it relative to the campaign file, inside its folder (the plan is the same on every machine)", p.display()));
+    }
+    Ok(t)
 }
 
 /// `p` with `.` and `..` taken out, lexically.
@@ -366,7 +397,10 @@ struct Cx {
 #[derive(Debug, Clone, Default)]
 struct Out {
     exits: Vec<String>,
+    /// The one state `from <this step>` names: a run's, or a sequence's last step's; none when that is many states.
     end: Option<String>,
+    /// The node the step's lineage is at after it (a sequence's last lineage node, even when a parallel follows it).
+    lineage: Option<String>,
 }
 
 /// A node before every name is known.
@@ -518,12 +552,18 @@ impl<'a> Planner<'a> {
                     {
                         self.errors.push(format!("{kind} `{name}`: level {l} is not a finite number"));
                     }
+                    // a level is given to a program as an environment variable, which holds no NUL
+                    if let Level::Text(t) = l
+                        && t.contains('\0')
+                    {
+                        self.errors.push(format!("{kind} `{name}`: level {t:?} holds a NUL, which no environment variable can carry"));
+                    }
                 }
             }
         }
         for e in &s.exclude {
             let p = Path::new(e);
-            if e.is_empty() || p.is_absolute() || p.components().any(|c| matches!(c, Component::ParentDir)) {
+            if e.is_empty() || p.is_absolute() || p.components().any(|c| matches!(c, Component::ParentDir)) || path_text(p).is_empty() {
                 self.errors.push(format!("exclude `{e}`: a path inside the governed root, relative to it"));
             }
         }
@@ -646,6 +686,7 @@ impl<'a> Planner<'a> {
             from: None,
             workspace: String::new(),
             strategy: WorkspaceStrategy::Shared,
+            disposable: false,
             assignment,
             controls: self.spec.controls.clone(),
             blocks,
@@ -660,7 +701,7 @@ impl<'a> Planner<'a> {
             bindings: Vec::new(),
         };
         self.drafts.push(Draft { node, from: cx.from.clone(), after: cx.after.clone(), place: cx.place.clone() });
-        let out = Out { exits: vec![id.clone()], end: Some(id.clone()) };
+        let out = Out { exits: vec![id.clone()], end: Some(id.clone()), lineage: Some(id.clone()) };
         self.name(&id, out.clone());
         out
     }
@@ -672,19 +713,21 @@ impl<'a> Planner<'a> {
             self.errors.push(format!("{what} has no steps"));
         }
         let (mut from, mut after, mut place) = (cx.from.clone(), cx.after.clone(), cx.place.clone());
-        let mut end = None;
+        let (mut lineage, mut end) = (None, None);
         for s in &g.steps {
             let out = self.step(s, Cx { from: from.clone(), after: after.clone(), place: place.clone(), nested: true });
             after = out.exits.iter().cloned().map(Ref::Node).collect();
-            if let Some(e) = out.end {
+            // the sequence ends where its last step ends: one state, or (a parallel, repeat or sweep last) many
+            end = out.end.clone();
+            if let Some(e) = out.lineage {
                 from = Some(Ref::Node(e.clone()));
                 if place != Placement::Shared {
                     place = Placement::SameAs(e.clone());
                 }
-                end = Some(e);
+                lineage = Some(e);
             }
         }
-        let out = Out { exits: after.into_iter().filter_map(|r| if let Ref::Node(n) = r { Some(n) } else { None }).collect(), end };
+        let out = Out { exits: after.into_iter().filter_map(|r| if let Ref::Node(n) = r { Some(n) } else { None }).collect(), end, lineage };
         if let Some(id) = &g.id {
             self.name(id, out.clone());
         }
@@ -702,7 +745,7 @@ impl<'a> Planner<'a> {
             let out = self.step(s, Cx { from: cx.from.clone(), after: cx.after.clone(), place: Placement::Isolated, nested: true });
             exits.extend(out.exits);
         }
-        let out = Out { exits, end: None };
+        let out = Out { exits, end: None, lineage: None };
         if let Some(id) = &g.id {
             self.name(id, out.clone());
         }
@@ -735,7 +778,7 @@ impl<'a> Planner<'a> {
             exits.extend(out.exits);
         }
         self.groups.push(PlannedGroup { id: r.id.clone(), kind: "repeat".into(), spec, design: None, factors: assignment.iter().map(|a| a.factor.clone()).collect(), blocks: blocks.iter().map(|b| b.name.clone()).collect(), repeats: r.times, treatments: vec![PlannedTreatment { name: r.run.id.clone(), assignment, varied: None }], nodes: exits.clone() });
-        let out = Out { exits, end: None };
+        let out = Out { exits, end: None, lineage: None };
         self.name(&r.id, out.clone());
         out
     }
@@ -781,8 +824,9 @@ impl<'a> Planner<'a> {
         for (bi, blocks) in block_sets.iter().enumerate() {
             for (ti, t) in treatments.iter().enumerate() {
                 for k in 1..=s.repeats {
+                    // block, treatment, replicate: the expansion's own order, which the ids sort in
                     let b = if s.blocks.is_empty() { String::new() } else { format!(".b{:0bw$}", bi + 1) };
-                    let id = format!("{}.t{:0tw$}{b}.r{k:0rw$}", s.id, ti + 1);
+                    let id = format!("{}{b}.t{:0tw$}.r{k:0rw$}", s.id, ti + 1);
                     let run = RunStep { id: id.clone(), spec: s.spec.clone(), set: Vec::new(), blocks: Vec::new(), after: Vec::new(), from: None, workspace: None };
                     let trial = Trial { id: Some(id), assignment: Some(t.assignment.clone()), blocks: Some(blocks.clone()), replicate: Some(k), treatment: Some(t.name.clone()), group: Some(s.id.clone()), design: Some(s.design), varied: t.varied.clone() };
                     let out = self.run(&run, Cx { from: cx.from.clone(), after: cx.after.clone(), place: Placement::Isolated, nested: true }, trial);
@@ -805,7 +849,7 @@ impl<'a> Planner<'a> {
             _ => s.factors.clone(),
         };
         self.groups.push(PlannedGroup { id: s.id.clone(), kind: "sweep".into(), spec, design: Some(s.design), factors, blocks: s.blocks.clone(), repeats: s.repeats, treatments, nodes: exits.clone() });
-        let out = Out { exits, end: None };
+        let out = Out { exits, end: None, lineage: None };
         self.name(&s.id, out.clone());
         out
     }
@@ -927,7 +971,6 @@ impl<'a> Planner<'a> {
     fn resolve(&mut self) -> Result<CampaignPlan, Vec<String>> {
         let mut errors = Vec::new();
         let ids: BTreeSet<String> = self.drafts.iter().map(|d| d.node.id.clone()).collect();
-        let index: BTreeMap<String, usize> = self.drafts.iter().enumerate().map(|(i, d)| (d.node.id.clone(), i)).collect();
         // each draft's `after` and `from`, as node ids
         for d in &mut self.drafts {
             let id = d.node.id.clone();
@@ -951,7 +994,7 @@ impl<'a> Planner<'a> {
                     }
                     Some(Out { end: Some(e), .. }) => Some(e.clone()),
                     Some(_) => {
-                        errors.push(format!("{id}: from `{n}`, a parallel, repeat or sweep: its trials end in many states, `from` names one (a node, or a sequence)"));
+                        errors.push(format!("{id}: from `{n}`, which ends in many states (a parallel, repeat or sweep, or a sequence whose last step is one): `from` names one state (a node, or a sequence that ends in one)"));
                         None
                     }
                 },
@@ -966,37 +1009,45 @@ impl<'a> Planner<'a> {
                 errors.push(format!("{id}: after itself"));
                 deps.retain(|x| x != &id);
             }
-            deps.sort_by_key(|x| index.get(x).copied().unwrap_or(usize::MAX));
+            deps.sort();
             deps.dedup();
             d.node.after = deps;
         }
         if !errors.is_empty() {
             return Err(errors);
         }
-        // the order: dependencies first, ties broken by declaration (Kahn's, smallest declaration index first)
+        // the order: dependencies first, ties broken by id (Kahn's, the smallest ready id first), so the order is the
+        // plan's own and never the order a document happened to list its steps in
+        let mut waiting: Vec<usize> = self.drafts.iter().map(|d| d.node.after.len()).collect();
+        let mut dependents: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+        for (i, d) in self.drafts.iter().enumerate() {
+            for a in &d.node.after {
+                dependents.entry(a.as_str()).or_default().push(i);
+            }
+        }
+        let mut ready: BTreeSet<(&str, usize)> = self.drafts.iter().enumerate().filter(|(i, _)| waiting[*i] == 0).map(|(i, d)| (d.node.id.as_str(), i)).collect();
         let mut placed: Vec<usize> = Vec::new();
-        let mut done: BTreeSet<&str> = BTreeSet::new();
-        let mut left: BTreeSet<usize> = (0..self.drafts.len()).collect();
-        while !left.is_empty() {
-            let next = left.iter().copied().find(|&i| self.drafts[i].node.after.iter().all(|a| done.contains(a.as_str())));
-            match next {
-                Some(i) => {
-                    left.remove(&i);
-                    done.insert(self.drafts[i].node.id.as_str());
-                    placed.push(i);
-                }
-                None => {
-                    let cycle: Vec<&str> = left.iter().map(|&i| self.drafts[i].node.id.as_str()).collect();
-                    return Err(vec![format!("a cycle: {} each wait for another of them", cycle.join(", "))]);
+        while let Some((id, i)) = ready.pop_first() {
+            placed.push(i);
+            for &j in dependents.get(id).map(Vec::as_slice).unwrap_or_default() {
+                waiting[j] -= 1;
+                if waiting[j] == 0 {
+                    ready.insert((self.drafts[j].node.id.as_str(), j));
                 }
             }
         }
+        if placed.len() < self.drafts.len() {
+            let cycle: Vec<&str> = (0..self.drafts.len()).filter(|i| waiting[*i] > 0).map(|i| self.drafts[i].node.id.as_str()).collect();
+            return Err(vec![format!("a cycle: {} each wait for another of them", cycle.join(", "))]);
+        }
+        let position: BTreeMap<String, usize> = placed.iter().enumerate().map(|(pos, &i)| (self.drafts[i].node.id.clone(), pos)).collect();
         let mut nodes: Vec<PlanNode> = Vec::new();
         let mut ws_of: BTreeMap<String, String> = BTreeMap::new();
         for (pos, &i) in placed.iter().enumerate() {
             let d = &self.drafts[i];
             let mut n = d.node.clone();
             n.index = pos;
+            n.after.sort_by_key(|a| position.get(a).copied().unwrap_or(usize::MAX));
             let parent_ws = n.from.as_ref().and_then(|f| ws_of.get(f).cloned());
             let (ws, strategy) = match &d.place {
                 Placement::Shared => ("shared".to_owned(), WorkspaceStrategy::Shared),
@@ -1035,19 +1086,29 @@ impl<'a> Planner<'a> {
             n.bindings = super::Binding::of_parts(&self.spec.id, &n).vars();
             nodes.push(n);
         }
+        // a node whose accepted state nothing starts from, in a workspace of its own: disposable
+        let parents: BTreeSet<String> = nodes.iter().filter_map(|n| n.from.clone()).collect();
+        for n in &mut nodes {
+            n.disposable = n.strategy == WorkspaceStrategy::Isolated && !parents.contains(&n.id);
+        }
         // one writer per workspace: in a workspace each state has at most one next node, and only its first node
         // starts from outside it
         let mut workspaces: Vec<PlannedWorkspace> = Vec::new();
+        let mut ws_at: BTreeMap<String, usize> = BTreeMap::new();
         for n in &nodes {
-            match workspaces.iter_mut().find(|w| w.id == n.workspace) {
-                Some(w) => w.nodes.push(n.id.clone()),
-                None => workspaces.push(PlannedWorkspace { id: n.workspace.clone(), strategy: if n.workspace == "shared" { WorkspaceStrategy::Shared } else { WorkspaceStrategy::Isolated }, source: n.from.clone(), nodes: vec![n.id.clone()] }),
+            match ws_at.get(&n.workspace) {
+                Some(&w) => workspaces[w].nodes.push(n.id.clone()),
+                None => {
+                    ws_at.insert(n.workspace.clone(), workspaces.len());
+                    workspaces.push(PlannedWorkspace { id: n.workspace.clone(), strategy: if n.workspace == "shared" { WorkspaceStrategy::Shared } else { WorkspaceStrategy::Isolated }, source: n.from.clone(), nodes: vec![n.id.clone()] });
+                }
             }
         }
+        let node_at: BTreeMap<&str, usize> = nodes.iter().enumerate().map(|(i, n)| (n.id.as_str(), i)).collect();
         for w in &workspaces {
             let mut next: BTreeMap<Option<&str>, &str> = BTreeMap::new();
             for id in &w.nodes {
-                let n = nodes.iter().find(|x| &x.id == id).expect("a node of the plan");
+                let n = &nodes[node_at[id.as_str()]];
                 if n.strategy == WorkspaceStrategy::Isolated {
                     continue;
                 }
@@ -1059,12 +1120,14 @@ impl<'a> Planner<'a> {
         }
         // the states isolated workspaces are made from
         let mut snapshots: Vec<String> = Vec::new();
+        let mut kept: BTreeSet<String> = BTreeSet::new();
         for n in nodes.iter().filter(|n| n.strategy == WorkspaceStrategy::Isolated) {
             let s = n.from.clone().unwrap_or_else(|| START.to_owned());
-            if !snapshots.contains(&s) {
+            if kept.insert(s.clone()) {
                 snapshots.push(s);
             }
         }
+
         // a binding the experiment's own commands already name
         for n in &nodes {
             if let Some(e) = self.experiments.get(&n.spec)
@@ -1081,8 +1144,9 @@ impl<'a> Planner<'a> {
         }
         let mut groups = self.groups.clone();
         for g in &mut groups {
-            g.nodes.sort_by_key(|id| nodes.iter().position(|n| &n.id == id));
+            g.nodes.sort_by_key(|id| node_at.get(id.as_str()).copied());
         }
+        groups.sort_by(|a, b| a.id.cmp(&b.id));
         let mut specs: Vec<PlannedSpec> = self.planned.values().cloned().collect();
         specs.sort_by(|a, b| a.path.cmp(&b.path));
         let s = self.spec;

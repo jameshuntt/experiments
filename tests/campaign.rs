@@ -365,9 +365,9 @@ fn a_factorial_sweep_expands_to_its_exact_cartesian_product_before_anything_runs
     }
     assert_eq!(g.treatments.iter().map(|t| t.name.clone()).collect::<Vec<_>>(), want);
     let first = &p.nodes[0];
-    assert_eq!(first.id, "grid.t01.b01.r01");
-    assert_eq!(p.nodes[9].id, "grid.t01.b01.r10");
-    assert_eq!(p.nodes[10].id, "grid.t02.b01.r01");
+    assert_eq!(first.id, "grid.b01.t01.r01");
+    assert_eq!(p.nodes[9].id, "grid.b01.t01.r10");
+    assert_eq!(p.nodes[10].id, "grid.b01.t02.r01");
     let ids: std::collections::BTreeSet<&str> = p.nodes.iter().map(|n| n.id.as_str()).collect();
     assert_eq!(ids.len(), 240, "stable, distinct ids");
     for n in &p.nodes {
@@ -441,8 +441,8 @@ fn blocks_are_recorded_apart_from_treatments_and_cross_the_design() {
     let text = MATRIX.replace("    level \"lab-1\"\n", "    level \"lab-1\"\n    level \"lab-2\"\n").replace("    repeats 10\n", "    repeats 1\n");
     let p = plan(&lab, "v1.blocks.1o.campaign", &text);
     assert_eq!(p.nodes.len(), 24 * 2);
-    assert_eq!(p.nodes[0].id, "grid.t01.b01.r01");
-    assert_eq!(p.nodes[24].id, "grid.t01.b02.r01");
+    assert_eq!(p.nodes[0].id, "grid.b01.t01.r01");
+    assert_eq!(p.nodes[24].id, "grid.b02.t01.r01");
     for n in &p.nodes {
         assert_eq!(n.blocks.len(), 1);
         assert_eq!(n.assignment.len(), 3, "the block is not in the assignment");
@@ -462,7 +462,7 @@ fn everything_is_refused_before_anything_runs() {
         (r#"{"id":"x","steps":[{"run":{"id":"a","spec":"nope.json"}}]}"#, "nope.json"),
         (r#"{"id":"x","steps":[{"run":{"id":"a","spec":"a.json","after":["ghost"]}}]}"#, "ghost"),
         (r#"{"id":"x","steps":[{"run":{"id":"a","spec":"a.json","after":["b"],"workspace":"isolated"}},{"run":{"id":"b","spec":"b.json","after":["a"],"workspace":"isolated"}}]}"#, "a cycle"),
-        (r#"{"id":"x","steps":[{"parallel":{"id":"p","steps":[{"run":{"id":"a","spec":"a.json"}},{"run":{"id":"b","spec":"b.json"}}]}},{"run":{"id":"c","spec":"c.json","from":"p","workspace":"isolated"}}]}"#, "end in many states"),
+        (r#"{"id":"x","steps":[{"parallel":{"id":"p","steps":[{"run":{"id":"a","spec":"a.json"}},{"run":{"id":"b","spec":"b.json"}}]}},{"run":{"id":"c","spec":"c.json","from":"p","workspace":"isolated"}}]}"#, "ends in many states"),
         (r#"{"id":"x","steps":[{"run":{"id":"a","spec":"a.json"}},{"run":{"id":"b","spec":"b.json"}}]}"#, "both evolve shared"),
         (r#"{"id":"x","steps":[{"run":{"id":"a","spec":"a.json"}},{"run":{"id":"b","spec":"b.json","from":"a"}},{"run":{"id":"c","spec":"c.json","from":"a"}}]}"#, "both evolve shared"),
         (r#"{"id":"x","steps":[{"parallel":{"workspace":"shared","steps":[{"run":{"id":"a","spec":"a.json"}}]}}]}"#, "cannot share"),
@@ -644,7 +644,10 @@ fn promotion_decides_the_state_and_the_rigor_decides_an_undeclared_change() {
     let mut rigor = node.clone();
     rigor.rigor = Rigor::Exploratory;
     let d = CampaignRunner::decide(&rigor, &promote, &u);
-    assert!(d.accept && d.findings[0].contains("undeclared change"));
+    assert!(!d.accept && d.findings[0].contains("undeclared change"), "A is shared: never accepted");
+    rigor.disposable = true;
+    assert!(CampaignRunner::decide(&rigor, &promote, &u).accept, "a disposable isolated node: recorded and kept");
+    rigor.disposable = false;
     rigor.rigor = Rigor::Controlled;
     let d = CampaignRunner::decide(&rigor, &promote, &u);
     assert!(!d.accept && d.status == NodeStatus::Completed);
@@ -721,7 +724,7 @@ fn group_summaries_count_and_describe_their_trials_and_claim_nothing_more() {
     // latency = replicate (1..4) for old, 10 × replicate for new; one new trial in m2 fails
     drive(&mut r, |id| {
         let rep: f64 = id.rsplit(".r").next().unwrap().parse().unwrap();
-        if id == "grid.t02.b02.r04" {
+        if id == "grid.b02.t02.r04" {
             return (Execution::Failed("measurement did not parse".into()), Vec::new());
         }
         let new = id.contains(".t02.");
@@ -739,9 +742,11 @@ fn group_summaries_count_and_describe_their_trials_and_claim_nothing_more() {
     assert_eq!(old_m1.trials.iter().map(|t| t.replicate.unwrap()).collect::<Vec<_>>(), [1, 2, 3, 4]);
     let new_m2 = &res.summaries[3];
     assert_eq!((new_m2.requested, new_m2.completed, new_m2.measurements[0].n), (4, 3, 3), "the failed trial is counted, not measured");
-    // the marginals: by each factor level and each block level
-    let by: Vec<(String, String, usize)> = res.marginals.iter().map(|m| (m.by.clone(), format!("{}={}", m.name, m.level), m.completed)).collect();
-    assert_eq!(by, [("factor".into(), "implementation=old".into(), 8), ("factor".into(), "implementation=new".into(), 7), ("block".into(), "machine=m1".into(), 8), ("block".into(), "machine=m2".into(), 7)]);
+    // by each factor level, within each block and starting state: never pooled across blocks
+    let by: Vec<(String, String, usize)> = res.marginals.iter().map(|m| (m.blocks[0].level.to_string(), format!("{}={}", m.factor, m.level), m.completed)).collect();
+    assert_eq!(by, [("m1".into(), "implementation=old".into(), 4), ("m1".into(), "implementation=new".into(), 4), ("m2".into(), "implementation=old".into(), 4), ("m2".into(), "implementation=new".into(), 3)]);
+    assert!(res.marginals.iter().all(|m| m.start_digest.as_deref() == Some("sha256:start")));
+    assert!(res.summaries.iter().all(|s| s.start_digest.as_deref() == Some("sha256:start")), "each summary names the one state its trials started from");
     let json = serde_json::to_string(&res).unwrap();
     assert!(!json.contains("significan") && !json.contains("p_value"), "no significance is claimed");
     // the result round-trips through its formats; 1o is refused
@@ -752,4 +757,88 @@ fn group_summaries_count_and_describe_their_trials_and_claim_nothing_more() {
         assert_eq!(experiments::read_campaign_result(&f).unwrap(), res, "{name}");
     }
     assert!(experiments::write_campaign_result(dir.path().join("v1.r.1o.experiment"), &res).is_err());
+}
+
+
+#[test]
+fn from_a_sequence_that_ends_in_many_states_is_refused() {
+    let lab = lab();
+    let e = refused(&lab, r#"{"id":"amb","steps":[{"sequence":{"id":"S","steps":[{"run":{"id":"A","spec":"a.json"}},{"parallel":{"steps":[{"run":{"id":"B","spec":"b.json"}},{"run":{"id":"C","spec":"c.json"}}]}}]}},{"run":{"id":"D","spec":"d.json","from":"S","workspace":"isolated"}}]}"#);
+    assert!(e.contains("D: from `S`, which ends in many states"), "{e}");
+    // a sequence that ends in one state is a `from`; inside, a step after a parallel still continues the lineage
+    let p = plan(&lab, "one.json", r#"{"id":"one","steps":[{"sequence":{"id":"S","steps":[{"run":{"id":"A","spec":"a.json"}},{"parallel":{"steps":[{"run":{"id":"B","spec":"b.json"}}]}},{"run":{"id":"C","spec":"c.json"}}]}},{"run":{"id":"D","spec":"d.json","from":"S","workspace":"isolated"}}]}"#);
+    assert_eq!((p.node("C").unwrap().from.as_deref(), p.node("D").unwrap().from.as_deref()), (Some("A"), Some("C")));
+}
+
+#[test]
+fn equivalent_documents_make_one_plan_whatever_order_and_spelling() {
+    let lab = lab();
+    fs::create_dir_all(lab.base.join("sub")).unwrap();
+    let flat = plan(&lab, "p2.json", r#"{"id":"p","steps":[{"run":{"id":"A","spec":"a.json"}},{"run":{"id":"B","spec":"b.json","from":"A","workspace":"isolated"}},{"run":{"id":"C","spec":"c.json","from":"A","workspace":"isolated"}}]}"#);
+    let reordered = plan(&lab, "p3.json", r#"{"id":"p","steps":[{"run":{"id":"C","spec":"c.json","from":"A","workspace":"isolated"}},{"run":{"id":"B","spec":"./sub/../b.json","from":"A","workspace":"isolated"}},{"run":{"id":"A","spec":"a.json"}}]}"#);
+    let nested = plan(&lab, "p1.json", r#"{"id":"p","steps":[{"sequence":{"steps":[{"run":{"id":"A","spec":"a.json"}},{"parallel":{"steps":[{"run":{"id":"C","spec":"c.json"}},{"run":{"id":"B","spec":"b.json"}}]}}]}}]}"#);
+    assert_eq!(flat.digest, reordered.digest);
+    assert_eq!(flat.digest, nested.digest);
+    assert_eq!(flat.nodes.iter().map(|n| n.id.as_str()).collect::<Vec<_>>(), ["A", "B", "C"], "dependencies first, then by id");
+    // a path that leaves the campaign's folder, or names a machine's own place, is refused
+    assert!(refused(&lab, r#"{"id":"x","steps":[{"run":{"id":"A","spec":"../campaign/a.json"}}]}"#).contains("inside its folder"));
+    let abs = lab.base.join("a.json");
+    assert!(refused(&lab, &format!(r#"{{"id":"x","steps":[{{"run":{{"id":"A","spec":"{}"}}}}]}}"#, abs.display())).contains("inside its folder"));
+}
+
+#[test]
+fn a_level_no_environment_can_carry_and_an_exclude_of_everything_are_refused() {
+    let lab = lab();
+    let e = refused(&lab, "{\"id\":\"x\",\"factors\":[{\"name\":\"implementation\",\"levels\":[\"a\\u0000b\"]}],\"steps\":[{\"run\":{\"id\":\"A\",\"spec\":\"a.json\"}}]}");
+    assert!(e.contains("holds a NUL"), "{e}");
+    for x in [".", "./", "sub/.."] {
+        let e = refused(&lab, &format!(r#"{{"id":"x","exclude":["{x}"],"steps":[{{"run":{{"id":"A","spec":"a.json"}}}}]}}"#));
+        assert!(e.contains(&format!("exclude `{x}`")), "{e}");
+    }
+}
+
+#[test]
+fn exploratory_keeps_an_undeclared_change_only_where_nothing_starts_from_it() {
+    let lab = lab();
+    let p = plan(&lab, "disp.json", r#"{"id":"d","rigor":"exploratory","steps":[{"run":{"id":"S","spec":"a.json"}},{"run":{"id":"I","spec":"b.json","workspace":"isolated"}},{"run":{"id":"P","spec":"c.json","workspace":"isolated"}},{"run":{"id":"Q","spec":"d.json","from":"P","workspace":"continue"}}]}"#);
+    let promote = concluded(PromotionDecision::Promote, 1.0);
+    let u = vec!["+stray.txt".to_string()];
+    let d = |id: &str| CampaignRunner::decide(p.node(id).unwrap(), &promote, &u);
+    assert!(d("I").accept && p.node("I").unwrap().disposable, "isolated, nothing starts from it: recorded, kept");
+    for id in ["S", "P", "Q"] {
+        let x = d(id);
+        assert!(!x.accept && x.findings[0].contains("never takes a change Code Passenger did not make"), "{id}: {x:?}");
+    }
+}
+
+#[test]
+fn a_stop_names_the_nodes_that_were_running_and_skips_the_rest_by_policy() {
+    let lab = lab();
+    let p = plan(&lab, "stop.json", r#"{"id":"s","policy":{"max_parallel":3},"steps":[{"repeat":{"id":"r","times":5,"run":{"id":"t","spec":"a.json"}}}]}"#);
+    let mut r = CampaignRunner::new(p, "run");
+    r.set_start(StateIdentity { digest: "sha256:start".into(), files: 1 });
+    let ready = r.ready();
+    for n in ready.iter().take(3) {
+        r.start(&n.id);
+    }
+    let rec = record(&r, "r.r01", &Execution::Refused("refused".into()), &[]);
+    r.finish(rec);
+    for id in ["r.r02", "r.r03"] {
+        let rec = record(&r, id, &concluded(PromotionDecision::Promote, 1.0), &[]);
+        r.finish(rec);
+    }
+    r.close();
+    let res = r.result(HostFacts::default());
+    let stop = res.stop.clone().unwrap();
+    assert_eq!((stop.node.as_str(), stop.in_flight.clone()), ("r.r01", vec!["r.r02".to_string(), "r.r03".to_string()]));
+    for id in ["r.r04", "r.r05"] {
+        assert!(res.nodes.iter().find(|n| n.plan.id == id).unwrap().run.reason.as_deref().unwrap().starts_with("skipped by policy"), "{id}");
+    }
+    // a resume keeps the refused attempt, and the in-flight record of a node that was running
+    let mut kept = r.progress().clone();
+    kept.nodes.remove("r.r03");
+    kept.running.push("r.r03".into());
+    let resumed = CampaignRunner::resume(r.plan().clone(), kept).unwrap();
+    let attempts: Vec<(&str, NodeStatus)> = resumed.progress().attempts.iter().map(|a| (a.id.as_str(), a.status)).collect();
+    assert!(attempts.contains(&("r.r01", NodeStatus::Refused)) && attempts.iter().any(|(id, _)| *id == "r.r03"), "{attempts:?}");
 }
