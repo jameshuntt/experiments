@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0 (unreleased)
+## 0.5.0 (2026-11-06)
 
 Exact tree equality as a measurement. The BFCB ordered history judged each replay by a measurement that ran
 `sh -c` to walk up to the set, then `cargo run --bin bfcb-state-verify` over the specimen and a kept tree, with
