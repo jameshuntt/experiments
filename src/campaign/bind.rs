@@ -56,6 +56,12 @@ impl Binding {
         for c in &mut out.mutation.changes {
             c.spec = change_of(&declared, &c.spec);
         }
+        // the tree an exact tree measurement must equal is where the experiment declared it, as a change spec is
+        for m in &mut out.measurements.measurements {
+            if let crate::MeasurementSource::ExactTree(e) = &mut m.source {
+                e.equals_tree = change_of(&declared, &e.equals_tree);
+            }
+        }
         out.target.root = workspace.to_path_buf();
         for c in commands_mut(&mut out) {
             c.env.extend(self.vars.iter().cloned());
@@ -77,10 +83,10 @@ pub(crate) fn conflicts(spec: &ExperimentSpec, vars: &[EnvVar]) -> Result<(), St
 
 fn commands(spec: &ExperimentSpec) -> impl Iterator<Item = &CommandSpec> {
     let p = &spec.protocol;
-    p.prepare.iter().chain(&p.baseline).chain(&p.intervention).chain(&p.candidate).chain(&p.cleanup).chain(&spec.verification.commands).chain(spec.measurements.measurements.iter().map(|m| &m.command))
+    p.prepare.iter().chain(&p.baseline).chain(&p.intervention).chain(&p.candidate).chain(&p.cleanup).chain(&spec.verification.commands).chain(spec.measurements.measurements.iter().filter_map(|m| m.command()))
 }
 
 fn commands_mut(spec: &mut ExperimentSpec) -> impl Iterator<Item = &mut CommandSpec> {
     let p = &mut spec.protocol;
-    p.prepare.iter_mut().chain(p.baseline.iter_mut()).chain(p.intervention.iter_mut()).chain(p.candidate.iter_mut()).chain(p.cleanup.iter_mut()).chain(spec.verification.commands.iter_mut()).chain(spec.measurements.measurements.iter_mut().map(|m| &mut m.command))
+    p.prepare.iter_mut().chain(p.baseline.iter_mut()).chain(p.intervention.iter_mut()).chain(p.candidate.iter_mut()).chain(p.cleanup.iter_mut()).chain(spec.verification.commands.iter_mut()).chain(spec.measurements.measurements.iter_mut().filter_map(|m| m.command_mut()))
 }

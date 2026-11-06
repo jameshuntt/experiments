@@ -1,7 +1,7 @@
 mod common;
 
 use experiments::{
-    ExperimentError, ExperimentPaths, ExperimentRunner, MeasurementParser, MeasurementPhase,
+    ExperimentError, ExperimentPaths, ExperimentRunner, MeasurementParser, MeasurementPhase, MeasurementSource,
     MeasurementPlan, MeasurementSpec, MutationMode, PromotionDecision, PromotionPolicy,
 };
 use scientific_method::{Direction, Hypothesis, ObservationRef, ScientificMethod};
@@ -38,22 +38,26 @@ fn runner_orders_phases_and_collects_baseline_before_intervention_and_candidate_
                 condition: "baseline".into(),
                 name: "latency".into(),
                 unit: Some("ms".into()),
-                command: common::shell(
-                    "baseline measurement",
-                    "echo baseline_measurement >> order.txt; cat value.txt",
-                ),
-                parser: MeasurementParser::Number,
+                source: MeasurementSource::Command {
+                    command: common::shell(
+                        "baseline measurement",
+                        "echo baseline_measurement >> order.txt; cat value.txt",
+                    ),
+                    parser: MeasurementParser::Number,
+                },
             },
             MeasurementSpec {
                 phase: MeasurementPhase::Candidate,
                 condition: "candidate".into(),
                 name: "latency".into(),
                 unit: Some("ms".into()),
-                command: common::shell(
-                    "candidate measurement",
-                    "echo candidate_measurement >> order.txt; cat value.txt",
-                ),
-                parser: MeasurementParser::Number,
+                source: MeasurementSource::Command {
+                    command: common::shell(
+                        "candidate measurement",
+                        "echo candidate_measurement >> order.txt; cat value.txt",
+                    ),
+                    parser: MeasurementParser::Number,
+                },
             },
         ],
     };
@@ -159,32 +163,40 @@ fn every_measurement_parser_records_the_expected_scalar() {
             condition: "candidate".into(),
             name: "number".into(),
             unit: None,
-            command: common::command("number", "printf", &["12.5"]),
-            parser: MeasurementParser::Number,
+            source: MeasurementSource::Command {
+                command: common::command("number", "printf", &["12.5"]),
+                parser: MeasurementParser::Number,
+            },
         },
         MeasurementSpec {
             phase: MeasurementPhase::Candidate,
             condition: "candidate".into(),
             name: "boolean".into(),
             unit: None,
-            command: common::command("boolean", "printf", &["true"]),
-            parser: MeasurementParser::Boolean,
+            source: MeasurementSource::Command {
+                command: common::command("boolean", "printf", &["true"]),
+                parser: MeasurementParser::Boolean,
+            },
         },
         MeasurementSpec {
             phase: MeasurementPhase::Candidate,
             condition: "candidate".into(),
             name: "text".into(),
             unit: None,
-            command: common::command("text", "printf", &["hello"]),
-            parser: MeasurementParser::Text,
+            source: MeasurementSource::Command {
+                command: common::command("text", "printf", &["hello"]),
+                parser: MeasurementParser::Text,
+            },
         },
         MeasurementSpec {
             phase: MeasurementPhase::Candidate,
             condition: "candidate".into(),
             name: "exit_success".into(),
             unit: None,
-            command: common::command("exit", "false", &[]),
-            parser: MeasurementParser::ExitSuccess,
+            source: MeasurementSource::Command {
+                command: common::command("exit", "false", &[]),
+                parser: MeasurementParser::ExitSuccess,
+            },
         },
     ];
 

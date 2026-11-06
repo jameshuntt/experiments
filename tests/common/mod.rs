@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use experiments::{
-    CommandSpec, DifferencesRequest, ExperimentSpec, ExperimentTarget, MeasurementParser,
+    CommandSpec, DifferencesRequest, ExperimentSpec, ExperimentTarget, MeasurementParser, MeasurementSource,
     MeasurementPhase, MeasurementPlan, MeasurementSpec, MutationBackend, MutationChange,
     MutationMode, MutationPlan, PromotionPolicy, Protocol, SCHEMA, Verification,
 };
@@ -143,32 +143,40 @@ pub fn rich_spec(root: impl Into<PathBuf>) -> ExperimentSpec {
                     condition: "baseline".into(),
                     name: "latency".into(),
                     unit: Some("ms".into()),
-                    command: command("baseline latency", "printf", &["100"]),
-                    parser: MeasurementParser::Number,
+                    source: MeasurementSource::Command {
+                        command: command("baseline latency", "printf", &["100"]),
+                        parser: MeasurementParser::Number,
+                    },
                 },
                 MeasurementSpec {
                     phase: MeasurementPhase::Candidate,
                     condition: "candidate".into(),
                     name: "latency".into(),
                     unit: Some("ms".into()),
-                    command: command("candidate latency", "printf", &["90"]),
-                    parser: MeasurementParser::Number,
+                    source: MeasurementSource::Command {
+                        command: command("candidate latency", "printf", &["90"]),
+                        parser: MeasurementParser::Number,
+                    },
                 },
                 MeasurementSpec {
                     phase: MeasurementPhase::Candidate,
                     condition: "candidate".into(),
                     name: "tests_pass".into(),
                     unit: None,
-                    command: command("tests pass", "true", &[]),
-                    parser: MeasurementParser::ExitSuccess,
+                    source: MeasurementSource::Command {
+                        command: command("tests pass", "true", &[]),
+                        parser: MeasurementParser::ExitSuccess,
+                    },
                 },
                 MeasurementSpec {
                     phase: MeasurementPhase::Candidate,
                     condition: "candidate".into(),
                     name: "status".into(),
                     unit: None,
-                    command: command("status", "printf", &["healthy"]),
-                    parser: MeasurementParser::Text,
+                    source: MeasurementSource::Command {
+                        command: command("status", "printf", &["healthy"]),
+                        parser: MeasurementParser::Text,
+                    },
                 },
             ],
         },

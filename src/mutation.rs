@@ -28,11 +28,7 @@ pub(crate) fn run(
             label: change.label.clone(),
             backend: spec.mutation.backend,
             root: root.clone(),
-            spec: if change.spec.is_absolute() {
-                change.spec.clone()
-            } else {
-                root.join(&change.spec)
-            },
+            spec: declared(&root, &change.spec),
             record: paths
                 .evidence(run_id)
                 .join(format!("mutation-{index:03}-code-passenger.json")),
@@ -114,7 +110,17 @@ pub(crate) fn code_passenger_change(
     Err("experiments was built without the `code-passenger` feature".into())
 }
 
-fn absolute(path: &Path) -> std::io::Result<PathBuf> {
+/// A path the experiment declares against its target (a change spec, an exact tree's `equals_tree`), absolute:
+/// relative to the target root `root` (absolute) unless absolute itself.
+pub(crate) fn declared(root: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        root.join(path)
+    }
+}
+
+pub(crate) fn absolute(path: &Path) -> std::io::Result<PathBuf> {
     if path.is_absolute() {
         Ok(path.to_path_buf())
     } else {

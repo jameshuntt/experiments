@@ -1,7 +1,7 @@
 use crate::{
-    differences, CommandRecord, CommandSpec, Evidence, ExperimentPaths, ExperimentResult,
-    ExperimentSpec, MeasurementParser, MeasurementPhase, MutationBackend, MutationMode,
-    MutationRecord, PromotionDecision, VerificationResult,
+    differences, CommandRecord, CommandSpec, Evidence, ExactTreeRecord, ExperimentPaths,
+    ExperimentResult, ExperimentSpec, MeasurementParser, MeasurementPhase, MeasurementSource,
+    MutationBackend, MutationMode, MutationRecord, PromotionDecision, VerificationResult,
 };
 use scientific_method::{Measurement, Observation, Observations, Outcome, Scalar};
 use std::{
@@ -73,6 +73,35 @@ pub trait ExperimentHost {
         &mut self,
         change: &ChangeRequest,
     ) -> Result<(MutationRecord, Vec<Evidence>), String>;
+
+    /// Compares two trees exactly, paths, bytes and modes, for one exact tree measurement, and returns what it read:
+    /// both digests, both file counts, every path where they differ. Unequal trees are a record (`equal` false), not
+    /// an error; a tree that cannot be read is an error, and the run stops.
+    fn compare_exact_tree(
+        &mut self,
+        request: &ExactTreeRequest,
+    ) -> Result<ExactTreeRecord, ExperimentError>;
+}
+
+/// One exact tree measurement, as the runner asks a host to make it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExactTreeRequest {
+    /// `measurement:baseline` or `measurement:candidate`.
+    pub phase: String,
+    /// The measurement's name.
+    pub name: String,
+    /// The tree measured, absolute: the target root joined with the measurement's `path`, where a command runs.
+    pub path: PathBuf,
+    /// The tree it must equal, absolute: resolved as a change spec is.
+    pub equals_tree: PathBuf,
+}
+
+/// Why [`Standalone`] makes no exact tree measurement.
+fn exact_tree_is_the_hosts(name: &str) -> ExperimentError {
+    ExperimentError::Measurement {
+        name: name.to_owned(),
+        detail: "an exact tree measurement is compared by the host that governs the run (Custodian: `custodian experiment run`, `custodian experiment campaign`), which reads every tree by one rule; experiments on its own does not compare trees".into(),
+    }
 }
 
 /// One structured change, as the runner asks a host to make it.
@@ -110,6 +139,13 @@ impl ExperimentHost for Standalone {
     ) -> Result<(MutationRecord, Vec<Evidence>), String> {
         crate::mutation::code_passenger_change(change)
     }
+
+    fn compare_exact_tree(
+        &mut self,
+        request: &ExactTreeRequest,
+    ) -> Result<ExactTreeRecord, ExperimentError> {
+        Err(exact_tree_is_the_hosts(&request.name))
+    }
 }
 
 pub struct ExperimentRunner {
@@ -123,11 +159,15 @@ impl ExperimentRunner {
         }
     }
 
-    /// Runs the experiment on this crate's own host ([`Standalone`]).
+    /// Runs the experiment on this crate's own host ([`Standalone`]). An exact tree measurement is refused before
+    /// anything runs: the comparison is a governing host's.
     pub fn run(
         &self,
         spec: &ExperimentSpec,
     ) -> Result<(ExperimentResult, PathBuf), ExperimentError> {
+        if let Some(m) = spec.measurements.measurements.iter().find(|m| m.exact_tree().is_some()) {
+            return Err(exact_tree_is_the_hosts(&m.name));
+        }
         self.run_with(spec, &mut Standalone)
     }
 
@@ -145,6 +185,7 @@ impl ExperimentRunner {
         crate::mutation::validate(spec).map_err(ExperimentError::Mutation)?;
 
         let mut records = Vec::new();
+        let mut exact_trees = Vec::new();
         let mut observations = Observations::new();
 
         run_phase(
@@ -169,6 +210,7 @@ impl ExperimentRunner {
             spec,
             &mut observations,
             &mut records,
+            &mut exact_trees,
         )?;
 
         if spec.mutation.mode == MutationMode::Unbounded {
@@ -198,6 +240,7 @@ impl ExperimentRunner {
             spec,
             &mut observations,
             &mut records,
+            &mut exact_trees,
         )?;
 
         let mut verification_records = Vec::new();
@@ -250,6 +293,7 @@ impl ExperimentRunner {
             differences: difference_reports,
             evidence,
             promotion,
+            exact_trees,
         };
 
         let result_path = paths.result(&run_id);
@@ -264,6 +308,7 @@ fn collect_measurements(
     spec: &ExperimentSpec,
     observations: &mut Observations,
     records: &mut Vec<CommandRecord>,
+    exact_trees: &mut Vec<ExactTreeRecord>,
 ) -> Result<(), ExperimentError> {
     for measurement_spec in spec
         .measurements
@@ -275,12 +320,28 @@ fn collect_measurements(
             MeasurementPhase::Baseline => "measurement:baseline",
             MeasurementPhase::Candidate => "measurement:candidate",
         };
-        let record = run_command(host, phase_name, &measurement_spec.command, &spec.target.root)?;
-        let value = parse_measurement(
-            &measurement_spec.name,
-            measurement_spec.parser.clone(),
-            &record,
-        )?;
+        let value = match &measurement_spec.source {
+            MeasurementSource::Command { command, parser } => {
+                let record = run_command(host, phase_name, command, &spec.target.root)?;
+                let value = parse_measurement(&measurement_spec.name, parser.clone(), &record)?;
+                records.push(record);
+                value
+            }
+            MeasurementSource::ExactTree(exact) => {
+                // the tree measured where a command would run; the tree it must equal where a change spec is
+                let root = crate::mutation::absolute(&spec.target.root)?;
+                let request = ExactTreeRequest {
+                    phase: phase_name.to_owned(),
+                    name: measurement_spec.name.clone(),
+                    path: root.join(&exact.path),
+                    equals_tree: crate::mutation::declared(&root, &exact.equals_tree),
+                };
+                let record = host.compare_exact_tree(&request)?;
+                let value = Scalar::Boolean(record.equal);
+                exact_trees.push(record);
+                value
+            }
+        };
         let mut measurement = Measurement::new(&measurement_spec.name, value);
         if let Some(unit) = &measurement_spec.unit {
             measurement = measurement.with_unit(unit);
@@ -289,7 +350,6 @@ fn collect_measurements(
             &measurement_spec.condition,
             measurement,
         ));
-        records.push(record);
     }
     Ok(())
 }

@@ -106,6 +106,30 @@ mutation {
 }
 ```
 
+## Measurements
+
+A measurement is a command with its parser (`number`, `boolean`, `text`,
+`exit_success`), or an exact tree measurement:
+
+```toml
+[[measurements.measurements]]
+phase = "candidate"
+condition = "candidate"
+name = "candidate_state_exact"
+[measurements.measurements.exact_tree]
+path = "specimen"                                  # the tree measured, relative to the target root
+equals_tree = "../../versions/0022-PASS16/tree"   # the tree it must equal, resolved as a change spec is
+```
+
+Its value is a boolean: true exactly when the two trees hold the same paths,
+each with the same bytes and the same mode. A measurement naming both a
+command and an exact tree, or neither, is refused as it is read, in every
+format. The comparison is the governing host's (`ExperimentHost::compare_exact_tree`):
+Custodian reads both trees by its one rule and the result keeps its record
+(`exact_trees`: both digests, both file counts, every differing path). Run
+alone (`experiments run`), an exact tree measurement is refused before anything
+runs; this crate does not read trees.
+
 ## Scientific separation
 
 Verification, scientific support, and promotion are separate decisions:

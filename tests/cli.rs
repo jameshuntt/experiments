@@ -1,7 +1,7 @@
 mod common;
 
 use experiments::{
-    write_spec, MeasurementParser, MeasurementPhase, MeasurementSpec, PromotionPolicy,
+    write_spec, MeasurementParser, MeasurementPhase, MeasurementSource, MeasurementSpec, PromotionPolicy,
 };
 use scientific_method::{Comparator, Criterion, Hypothesis, Operand, ScientificMethod};
 use std::ffi::OsString;
@@ -35,12 +35,14 @@ fn boolean_candidate(value: bool) -> experiments::ExperimentSpec {
         condition: "candidate".into(),
         name: "tests_pass".into(),
         unit: None,
-        command: common::command(
-            "tests pass",
-            "printf",
-            &[if value { "true" } else { "false" }],
-        ),
-        parser: MeasurementParser::Boolean,
+        source: MeasurementSource::Command {
+            command: common::command(
+                "tests pass",
+                "printf",
+                &[if value { "true" } else { "false" }],
+            ),
+            parser: MeasurementParser::Boolean,
+        },
     });
     spec
 }

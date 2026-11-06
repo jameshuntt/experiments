@@ -21,7 +21,7 @@ pub use codec::{read_campaign, read_campaign_progress, read_campaign_result, rea
 pub use differences::{DifferencesReport, DifferencesRequest, DifferencesSource};
 pub use layout::ExperimentPaths;
 pub use model::*;
-pub use runner::{ChangeRequest, ExperimentError, ExperimentHost, ExperimentRunner, Standalone};
+pub use runner::{ChangeRequest, ExactTreeRequest, ExperimentError, ExperimentHost, ExperimentRunner, Standalone};
 
 /// The vocabulary an experiment is written in (its hypothesis, variables, controls, criteria, observations), as this
 /// crate builds against it.

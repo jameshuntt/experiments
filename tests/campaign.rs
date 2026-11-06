@@ -26,8 +26,10 @@ fn experiment(dir: &Path, root: &Path, name: &str, variables: &[&str], controls:
         condition: "candidate".into(),
         name: "latency".into(),
         unit: Some("ms".into()),
-        command: common::command("latency", "printf", &["1"]),
-        parser: experiments::MeasurementParser::Number,
+        source: experiments::MeasurementSource::Command {
+            command: common::command("latency", "printf", &["1"]),
+            parser: experiments::MeasurementParser::Number,
+        },
     });
     let p = dir.join(format!("{name}.json"));
     write_spec(&p, &s).unwrap();
@@ -545,7 +547,7 @@ fn a_binding_reaches_every_command_as_typed_environment_and_nothing_else_changes
     let want = ["EXPERIMENT_CAMPAIGN=bind", "EXPERIMENT_TRIAL=one", "EXPERIMENT_FACTOR_IMPLEMENTATION=new", "EXPERIMENT_FACTOR_RATIO=1.0", "EXPERIMENT_CONTROL_SEED=7", "EXPERIMENT_BLOCK_MACHINE=m1"];
     let got: Vec<String> = node.bindings.iter().map(|v| format!("{}={}", v.name, v.value)).collect();
     assert_eq!(got, want, "in declaration order, one text form per level");
-    let measured = &bound.measurements.measurements[0].command;
+    let measured = bound.measurements.measurements[0].command().unwrap();
     assert_eq!(measured.env, node.bindings);
     assert_eq!(measured.args, ["1"], "no word is templated");
     assert_eq!(bound.target.root, ws);
@@ -554,7 +556,7 @@ fn a_binding_reaches_every_command_as_typed_environment_and_nothing_else_changes
     // a bound command's program gets exactly that environment (the standalone host runs it)
     let dir = tempdir().unwrap();
     let mut s = common::base_spec(dir.path());
-    s.measurements.measurements.push(experiments::MeasurementSpec { phase: experiments::MeasurementPhase::Candidate, condition: "candidate".into(), name: "ratio".into(), unit: None, command: common::command("ratio", "printenv", &["EXPERIMENT_FACTOR_RATIO"]), parser: experiments::MeasurementParser::Number });
+    s.measurements.measurements.push(experiments::MeasurementSpec { phase: experiments::MeasurementPhase::Candidate, condition: "candidate".into(), name: "ratio".into(), unit: None, source: experiments::MeasurementSource::Command { command: common::command("ratio", "printenv", &["EXPERIMENT_FACTOR_RATIO"]), parser: experiments::MeasurementParser::Number } });
     let bound = Binding::of(node).apply(&s, dir.path(), dir.path()).unwrap();
     let (result, _) = experiments::ExperimentRunner::new(dir.path().join("storage")).run(&bound).unwrap();
     let m = result.observations.iter().find(|o| o.measurement.name == "ratio").unwrap();

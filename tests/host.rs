@@ -2,7 +2,7 @@ mod common;
 
 use experiments::{
     ChangeRequest, CommandRecord, CommandSpec, Evidence, ExperimentError, ExperimentHost,
-    ExperimentRunner, MeasurementParser, MeasurementPhase, MeasurementPlan, MeasurementSpec,
+    ExperimentRunner, MeasurementParser, MeasurementPhase, MeasurementPlan, MeasurementSource, MeasurementSpec,
     MutationChange, MutationMode, MutationPlan, MutationRecord, PromotionDecision,
 };
 use scientific_method::{Direction, Hypothesis, ObservationRef, ScientificMethod};
@@ -68,6 +68,13 @@ impl ExperimentHost for Answering {
         }];
         Ok((record, evidence))
     }
+
+    fn compare_exact_tree(
+        &mut self,
+        request: &experiments::ExactTreeRequest,
+    ) -> Result<experiments::ExactTreeRecord, ExperimentError> {
+        Err(ExperimentError::Other(format!("no exact tree here: {}", request.name)))
+    }
 }
 
 #[test]
@@ -93,8 +100,10 @@ fn a_host_carries_out_every_command_and_every_bounded_change() {
         condition: condition.into(),
         name: "latency".into(),
         unit: None,
-        command: common::command(condition, absent, &[]),
-        parser: MeasurementParser::Number,
+        source: MeasurementSource::Command {
+            command: common::command(condition, absent, &[]),
+            parser: MeasurementParser::Number,
+        },
     };
     spec.measurements = MeasurementPlan {
         measurements: vec![
@@ -174,6 +183,12 @@ fn a_change_the_host_refuses_stops_the_run_before_the_candidate() {
             _change: &ChangeRequest,
         ) -> Result<(MutationRecord, Vec<Evidence>), String> {
             Err("not authorized".into())
+        }
+        fn compare_exact_tree(
+            &mut self,
+            request: &experiments::ExactTreeRequest,
+        ) -> Result<experiments::ExactTreeRecord, ExperimentError> {
+            Answering::default().compare_exact_tree(request)
         }
     }
     let target = tempdir().expect("target");

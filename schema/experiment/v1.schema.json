@@ -913,7 +913,28 @@
                       "boolean",
                       "text",
                       "exit_success"
-                    ]
+                    ],
+                    "description": "How the command's output or status is read; given with command, never with exact_tree."
+                  },
+                  "exact_tree": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "The tree measured, relative to the target root unless absolute."
+                      },
+                      "equals_tree": {
+                        "type": "string",
+                        "description": "The tree it must equal, relative to the experiment's target unless absolute, as a change spec is."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "x-1o-single-keys": true,
+                    "required": [
+                      "path",
+                      "equals_tree"
+                    ],
+                    "description": "Exact tree equality, compared by the governing host: true exactly when both trees hold the same paths with the same bytes and modes. A measurement is a command with its parser, or an exact_tree."
                   }
                 },
                 "additionalProperties": false,
@@ -921,9 +942,7 @@
                 "required": [
                   "phase",
                   "condition",
-                  "name",
-                  "command",
-                  "parser"
+                  "name"
                 ]
               },
               "x-serde-key": "measurements"

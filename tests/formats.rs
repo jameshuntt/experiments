@@ -232,6 +232,7 @@ fn sample_result() -> ExperimentResult {
             path: "proof.json".into(),
         }],
         promotion: PromotionDecision::Promote,
+        exact_trees: Vec::new(),
     }
 }
 
