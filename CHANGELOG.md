@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.5.0 (unreleased)
+
+Exact tree equality as a measurement. The BFCB ordered history judged each replay by a measurement that ran
+`sh -c` to walk up to the set, then `cargo run --bin bfcb-state-verify` over the specimen and a kept tree, with
+`exit_success` as the value: a shell, a build and a second reader of trees for what is one fact, that two trees hold
+the same paths with the same bytes and modes. Now an experiment says that fact and its host reads it. Minor, not
+patch: `MeasurementSpec`'s `command` and `parser` are now its `source`, and `ExperimentHost` has a new method, so a
+struct literal or a host written against 0.4 does not build. Every 0.4 spec reads, and writes, as it did. The schema
+word stays `experiments.spec.v3`: the readers refuse only another word ([codec.rs L51](https://github.com/jameshuntt/experiments/blob/e7f17c3/src/codec.rs#L51)), 0.4.0
+added `env` under v3, and a 0.4 reader given an exact tree measurement refuses it (no `command`) rather than misread
+it. Links are pinned to 35f68e9.
+
+- **A measurement is one or the other** ([`MeasurementSpec`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/model.rs#L80), was
+  [`command` and `parser`](https://github.com/jameshuntt/experiments/blob/e7f17c3/src/model.rs#L79)): its [`source`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/model.rs#L93) is a command with its
+  parser, or an [`ExactTree`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/model.rs#L108) `{ path, equals_tree }`. Every format reads and writes one form
+  ([`MeasurementForm`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/model.rs#L118)): `command` and `parser` as before, or `exact_tree`; both, neither, a
+  command without its parser, a parser with no command are each refused as read, saying which
+  ([L132](https://github.com/jameshuntt/experiments/blob/35f68e9/src/model.rs#L132)). The 1o schema takes `exact_tree` and requires `phase`, `condition` and `name` (the
+  rest is the reader's rule, which every format shares).
+- **Where the trees are.** `path` is where a command runs (the target root); `equals_tree` is where a change spec is,
+  by the one rule the runner resolves both by ([`declared`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/mutation.rs#L115), used for the change at
+  [L31](https://github.com/jameshuntt/experiments/blob/35f68e9/src/mutation.rs#L31), was [inline](https://github.com/jameshuntt/experiments/blob/e7f17c3/src/mutation.rs#L31), and for the tree at
+  [runner.rs L330](https://github.com/jameshuntt/experiments/blob/35f68e9/src/runner.rs#L330)); a campaign's binding resolves it against the declared target, as it
+  resolves each change spec ([bind.rs L62](https://github.com/jameshuntt/experiments/blob/35f68e9/src/campaign/bind.rs#L62)).
+- **The host compares** ([`compare_exact_tree`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/runner.rs#L80), given an
+  [`ExactTreeRequest`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/runner.rs#L88)): it returns an [`ExactTreeRecord`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/model.rs#L358), the two
+  trees, both digests, both file counts, every differing path, `equal`; `equal` is the measurement's value, unequal
+  trees are a record and not an error. The result keeps every record in [`exact_trees`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/model.rs#L402) (read
+  as empty from a result written before; not written when empty).
+- **Standalone does not compare trees** ([L143](https://github.com/jameshuntt/experiments/blob/35f68e9/src/runner.rs#L143)): the rule a tree is read by is the governing
+  host's (Custodian's), never a second copy here. `ExperimentRunner::run` refuses an exact tree measurement before
+  anything runs ([L164](https://github.com/jameshuntt/experiments/blob/35f68e9/src/runner.rs#L164), [`exact_tree_is_the_hosts`](https://github.com/jameshuntt/experiments/blob/35f68e9/src/runner.rs#L100)).
+
+Tests: `tests/exact_tree.rs`: `a_measurement_is_a_command_with_its_parser_or_an_exact_tree_in_every_format` (1o, JSON,
+YAML, YML, TOML round trips; both, neither, no parser, a parser and a tree, an unknown key, each refused),
+`a_spec_written_before_reads_as_it_did_and_writes_the_same_keys` (a 0.4 command measurement's JSON, byte for byte; the
+shipped examples), `the_standalone_host_refuses_an_exact_tree_measurement_before_anything_runs` (no prepare ran,
+nothing stored), `a_hosts_exact_tree_record_is_the_measurement_and_the_result_keeps_it` (equal and not:
+the value, the promotion, the record read back), `a_campaigns_binding_resolves_equals_tree_where_a_change_spec_is_resolved`.
+
+`cargo test --all-features`: 63 passed, 0 failed (5 of them in `tests/exact_tree.rs`).
+
 ## 0.4.0 (2026-11-03)
 
 Campaigns: experiments composed over an evolving accepted state, and experimental designs over factors, as one
